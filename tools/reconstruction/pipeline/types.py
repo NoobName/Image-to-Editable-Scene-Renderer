@@ -21,6 +21,11 @@ class InputImage:
     source_size: tuple[int, int]  # stored file width, height before EXIF orientation
     source_sha256: str
     color_profile_applied: bool = False
+    # Models continue to consume rgb only. Full-resolution source ownership stays on CPU.
+    canonical_rgb: RGBImage | None = None
+    original_bytes: bytes | None = None
+    normalization: dict = field(default_factory=dict)
+    anchor_package: Path | None = None  # Re-export copies an existing anchor without re-encoding.
 
     @property
     def width(self) -> int:
@@ -46,6 +51,7 @@ class AnalysisResult:
     material: "MaterialPrediction | MaterialEstimate"
     geometry: "GeometryPrediction | None" = None
     segmentation: "SegmentationResult | None" = None
+    lighting: object | None = None  # CPU-only LightingEstimate; no renderer/model coupling.
 
 
 @dataclass(frozen=True)

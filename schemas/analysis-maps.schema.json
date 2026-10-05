@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnalysisMaps runtime v1 (restricted DDS)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "sourceId",
+    "sourceSize",
+    "analysisSize",
+    "pixelConvention",
+    "sourceToAnalysis",
+    "camera",
+    "sampling",
+    "maps"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceSize": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 16384
+      }
+    },
+    "analysisSize": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 16384
+      }
+    },
+    "pixelConvention": {
+      "const": "edge-origin-half-integer-centers"
+    },
+    "sourceToAnalysis": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {
+        "type": "number"
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intrinsicsNormalized",
+        "intrinsicsPixels",
+        "cameraToWorld",
+        "coordinateSystem",
+        "worldFrame",
+        "scaleType",
+        "provenance"
+      ],
+      "properties": {
+        "intrinsicsNormalized": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": {
+            "type": "number"
+          }
+        },
+        "intrinsicsPixels": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": {
+            "type": "number"
+          }
+        },
+        "cameraToWorld": {
+          "type": "array",
+          "minItems": 16,
+          "maxItems": 16,
+          "items": {
+            "type": "number"
+          }
+        },
+        "coordinateSystem": {
+          "const": "left-handed-y-up"
+        },
+        "worldFrame": {
+          "const": "reconstruction-not-edited-scene"
+        },
+        "scaleType": {
+          "enum": [
+            "metric",
+            "relative",
+            "synthetic"
+          ]
+        },
+        "provenance": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "sampling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relativeDepthThreshold",
+        "boundaryPolicy"
+      ],
+      "properties": {
+        "relativeDepthThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "boundaryPolicy": {
+          "const": "nearest-valid-center-or-all-valid-same-region-footprint"
+        }
+      }
+    },
+    "maps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "depth",
+        "normal",
+        "normalWorld",
+        "position",
+        "validity",
+        "region",
+        "albedo",
+        "roughness",
+        "metallic",
+        "geometryConfidence",
+        "materialConfidence",
+        "regionConfidence",
+        "tangentNormal"
+      ],
+      "properties": {
+        "depth": {
+          "$ref": "#/$defs/map"
+        },
+        "normal": {
+          "$ref": "#/$defs/map"
+        },
+        "normalWorld": {
+          "$ref": "#/$defs/map"
+        },
+        "position": {
+          "$ref": "#/$defs/map"
+        },
+        "validity": {
+          "$ref": "#/$defs/map"
+        },
+        "region": {
+          "$ref": "#/$defs/map"
+        },
+        "albedo": {
+          "$ref": "#/$defs/map"
+        },
+        "roughness": {
+          "$ref": "#/$defs/map"
+        },
+        "metallic": {
+          "$ref": "#/$defs/map"
+        },
+        "geometryConfidence": {
+          "$ref": "#/$defs/map"
+        },
+        "materialConfidence": {
+          "$ref": "#/$defs/map"
+        },
+        "regionConfidence": {
+          "$ref": "#/$defs/map"
+        },
+        "tangentNormal": {
+          "$ref": "#/$defs/map"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "map": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reason"
+          ],
+          "properties": {
+            "status": {
+              "const": "unavailable"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "path",
+            "format",
+            "size",
+            "space",
+            "units",
+            "validity",
+            "sampling",
+            "provenance",
+            "range"
+          ],
+          "properties": {
+            "status": {
+              "const": "available"
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "RGBA32_FLOAT",
+                "R32_UINT"
+              ]
+            },
+            "size": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16384
+              }
+            },
+            "space": {
+              "type": "string",
+              "minLength": 1
+            },
+            "units": {
+              "type": "string",
+              "minLength": 1
+            },
+            "validity": {
+              "enum": [
+                "geometry",
+                "all-pixels",
+                "region-nonzero"
+              ]
+            },
+            "sampling": {
+              "enum": [
+                "guarded-bilinear",
+                "nearest"
+              ]
+            },
+            "provenance": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "backend",
+                "meaning",
+                "kind"
+              ],
+              "properties": {
+                "backend": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "meaning": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kind": {
+                  "enum": [
+                    "estimated",
+                    "derived",
+                    "synthetic",
+                    "fallback"
+                  ]
+                }
+              }
+            },
+            "range": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -8,28 +8,50 @@
 #include "ScenePackage/ScenePackageLoader.h"
 #include "App/LightingOptions.h"
 #include "App/LookOptions.h"
+#include "App/ReconstructionSession.h"
+#include "App/EditorSmoke.h"
+#include "App/ImageModeOptions.h"
 #include <chrono>
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 namespace isr {
 int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
     bool warp = false, smoke = false, reverseOrder = false, cameraSmoke = false;
     std::optional<bool> ui;bool materialSmoke=false;RenderSettings settings;std::wstring lightSelection=L"all";
     bool environmentSmoke=false,lightingTest=false,lookSmoke=false,explicitEnvironment=false;
+    EditorSmoke editorSmoke;
+    ImageModeOptions imageOptions;
     unsigned frameLimit = 0; Demo demo = Demo::Scene; std::filesystem::path capture,model,packagePath;std::string objectSmoke;
     wchar_t executable[32768]{};
     if (!GetModuleFileNameW(nullptr, executable, 32768)) Check(HRESULT_FROM_WIN32(GetLastError()));
+    ReconstructionSession reconstruction(std::filesystem::path(executable).parent_path());
+    std::filesystem::path reconstructImage,nextReconstructImage;unsigned cancelReconstructionFrame=0,reconstructionRepeat=1;bool lightingOnlyJob=false;
     std::filesystem::path log = std::filesystem::path(executable).parent_path() / L"renderer.log";
     for (int i = 1; i < argc; ++i) {
         const std::wstring argument = argv[i];
+        if(imageOptions.Parse(argument,i,argc,argv))continue;
         if(ParseLookOption(argument,i,argc,argv,settings.look))continue;
         if(ParseLightingOption(argument,i,argc,argv,settings,environmentSmoke,lightingTest)){if(argument==L"--env")explicitEnvironment=true;continue;}
         if (argument == L"--warp") warp = true;
+        else if(argument==L"--reconstruct"&&i+1<argc)reconstructImage=argv[++i];
+        else if(argument==L"--fit-lighting"&&i+1<argc){reconstructImage=argv[++i];lightingOnlyJob=true;}
+        else if(argument==L"--reconstruction-next-image"&&i+1<argc)nextReconstructImage=argv[++i];
+        else if(argument==L"--reconstruction-python"&&i+1<argc)reconstruction.manager.options.python=argv[++i];
+        else if(argument==L"--reconstruction-cancel-frame"&&i+1<argc)cancelReconstructionFrame=std::stoul(argv[++i]);
+        else if(argument==L"--reconstruction-repeat"&&i+1<argc){reconstructionRepeat=std::stoul(argv[++i]);if(!reconstructionRepeat||reconstructionRepeat>10)throw std::invalid_argument("Reconstruction repeat must be 1..10");}
+        else if(argument==L"--reconstruction-preset"&&i+1<argc){
+            const std::wstring preset=argv[++i];if(preset!=L"dummy"&&preset!=L"full")throw std::invalid_argument("Reconstruction preset must be dummy or full");
+            auto& options=reconstruction.manager.options;const bool dummy=preset==L"dummy";
+            options.geometry=dummy?"dummy":"moge";options.segmentation=dummy?"dummy":"sam2";options.materials=dummy?"neutral":"marigold";
+        }
         else if(argument==L"--ui")ui=true;
         else if(argument==L"--no-ui")ui=false;
         else if(argument==L"--material-smoke")materialSmoke=true;
         else if(argument==L"--object-smoke"&&i+1<argc)objectSmoke=PathUtf8(std::filesystem::path(argv[++i]));
+        else if(argument==L"--editor-smoke"&&i+1<argc)editorSmoke.mode=PathUtf8(std::filesystem::path(argv[++i]));
+        else if(argument==L"--editor-object"&&i+1<argc)editorSmoke.objectId=PathUtf8(std::filesystem::path(argv[++i]));
         else if(argument==L"--look-smoke")lookSmoke=true;
         else if(argument==L"--render-mode"&&i+1<argc){
             const std::wstring value=argv[++i];const wchar_t* names[]={L"final",L"albedo",L"normal",L"roughness",L"metallic",L"depth",L"wireframe",
@@ -60,10 +82,14 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
     if (!capture.empty() && !frameLimit) throw std::invalid_argument("--capture requires --frames");
     if(!model.empty()&&!packagePath.empty()) throw std::invalid_argument("--model and --package are mutually exclusive");
     if(!packagePath.empty()&&demo!=Demo::Scene) throw std::invalid_argument("--package requires --demo scene");
-    AssetManager assets;Scene scene;CameraController controller;
+    if(!reconstructImage.empty()&&demo!=Demo::Scene)throw std::invalid_argument("--reconstruct requires --demo scene");
+    if(!editorSmoke.mode.empty()&&(!reconstructImage.empty()||!frameLimit||demo!=Demo::Scene))throw std::invalid_argument("Editor smoke requires a finite scene run without reconstruction");
+    if(!imageOptions.smoke.empty()&&(!reconstructImage.empty()||!frameLimit||demo!=Demo::Scene))throw std::invalid_argument("Image smoke requires a finite scene run without reconstruction");
+    AssetManager assets;Scene scene;CameraController controller;std::shared_ptr<const SourceObservation> observation;
     if(packagePath.empty()) scene=model.empty()?Scene::CreateDemo():assets.LoadModel(model);
     else {
         auto package=ScenePackageLoader{}.Load(packagePath);scene=std::move(package.scene);
+        observation=std::move(package.observation);
         settings.look=package.look;settings.environmentPath=package.environment.hdri;
         settings.environmentIntensity=package.environment.intensity;settings.environmentRotation=package.environment.rotation;
         settings.ibl=package.environment.ibl;settings.skybox=package.environment.skybox;
@@ -76,7 +102,9 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
             if(ParseLightingOption(argument,i,argc,argv,settings,environmentSmoke,lightingTest)) continue;
             // Skip operands of other switches, even when a filename happens to start with --.
             if(argument==L"--package"||argument==L"--model"||argument==L"--log"||argument==L"--capture"||argument==L"--frames"||
-                argument==L"--demo"||argument==L"--render-mode"||argument==L"--ambient"||argument==L"--lights"||argument==L"--object-smoke") ++i;
+                argument==L"--demo"||argument==L"--render-mode"||argument==L"--ambient"||argument==L"--lights"||argument==L"--object-smoke"||argument==L"--editor-smoke"||argument==L"--editor-object"||
+                argument==L"--reconstruct"||argument==L"--fit-lighting"||argument==L"--reconstruction-python"||argument==L"--reconstruction-preset"||argument==L"--reconstruction-cancel-frame"||argument==L"--reconstruction-repeat"||
+                argument==L"--work-mode"||argument==L"--image-view"||argument==L"--window-size"||argument==L"--image-smoke"||argument==L"--reconstruction-next-image") ++i;
         }
         Log("Package look: exposure="+std::to_string(settings.look.exposure)+"; environment intensity="+std::to_string(settings.environmentIntensity));
     }
@@ -91,8 +119,13 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         if(found==scene.entities.end())throw std::invalid_argument("Object smoke ID was not found");
         objectSmokeRoot=size_t(found-scene.entities.begin());
     }
-    Window window(instance, 1280, 720);
-    Renderer renderer(window.Handle(), window.Width(), window.Height(), warp, demo, scene,ui.value_or(frameLimit==0),settings.environmentPath);
+    Window window(instance,imageOptions.width,imageOptions.height);
+    editorSmoke.Initialize(scene);
+    Renderer renderer(window.Handle(), window.Width(), window.Height(), warp, demo, scene,ui.value_or(frameLimit==0),settings.environmentPath,std::move(observation));
+    imageOptions.Start(renderer);
+    if(auto selected=editorSmoke.Selection())renderer.SelectEntity(*selected);
+    renderer.BindReconstruction(window.Handle(),&reconstruction.manager);
+    if(!reconstructImage.empty())reconstruction.manager.Start(reconstructImage,lightingOnlyJob);
     window.SetMessageHandler([&](HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){return renderer.HandleMessage(hwnd,msg,wp,lp);});
     struct MessageHandlerLifetime {
         Window& window;
@@ -100,14 +133,25 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
     } messageHandlerLifetime{window}; // Also detach before Renderer destruction during exception unwinding.
     Log("Window created; demo=" + std::to_string(static_cast<int>(demo)));
     unsigned frames = 0;
+    unsigned reconstructionEndFrame=0;const auto reconstructionStart=std::chrono::steady_clock::now();
+    auto previousReconstructionState=ReconstructionState::Idle;
     auto previous = std::chrono::steady_clock::now();
     while (window.Pump()) {
         const auto now = std::chrono::steady_clock::now();
         const float dt = std::chrono::duration<float>(now-previous).count(); previous = now;
-        if (window.Minimized() || !window.Width() || !window.Height()) { window.ConsumeInput(); WaitMessage(); previous = std::chrono::steady_clock::now(); continue; }
+        reconstruction.Tick(renderer,scene,settings,controller);
+        const auto reconstructionState=reconstruction.manager.Status().state;
+        if(reconstructionState!=previousReconstructionState){Log(std::string("Reconstruction state ")+ReconstructionStateName(reconstructionState)+" at rendered frame="+std::to_string(frames));previousReconstructionState=reconstructionState;}
+        if(!reconstructImage.empty()&&!reconstruction.manager.Status().Busy()&&!reconstructionEndFrame){
+            reconstructionEndFrame=frames+frameLimit;Log("Reconstruction terminal after rendered frames="+std::to_string(frames));objectSmokeRoot.reset();}
+        if(cancelReconstructionFrame&&frames==cancelReconstructionFrame)reconstruction.manager.Cancel();
+        if(!reconstructImage.empty()&&frameLimit&&now-reconstructionStart>std::chrono::minutes(20))throw std::runtime_error("Reconstruction smoke timed out");
+        if (window.Minimized() || !window.Width() || !window.Height()) { window.ConsumeInput();
+            MsgWaitForMultipleObjectsEx(0,nullptr,100,QS_ALLINPUT,MWMO_INPUTAVAILABLE);previous = std::chrono::steady_clock::now();continue; }
         auto input = window.ConsumeInput();
         renderer.Resize(window.Width(), window.Height());
         renderer.UpdateUI(scene,settings,input);
+        editorSmoke.Tick(frames,scene,settings);
         if(objectSmokeRoot&&(frames==30||frames==50||frames==70)) {
             const auto targets=scene.RenderableSubtree(*objectSmokeRoot);
             for(auto index:targets) {
@@ -138,19 +182,31 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
             else if (frames < 60) { input.rightMouse = true; input.keys[VK_MENU] = true; input.mouseX = 2; }
             else if (frames == 60) input.wheel = 1;
         }
-        controller.Update(scene.camera,input,cameraSmoke ? 1.0f/60.0f : dt);
-        scene.camera.SetAspect(renderer.SceneAspect()); // A reset camera must still match the embedded viewport.
+        imageOptions.Tick(frames,scene,renderer,input);
+        controller.Update(scene.camera,input,cameraSmoke ? 1.0f/60.0f : dt,renderer.Session().Mode());
+        if(renderer.Session().Mode()==WorkMode::Scene3D)scene.camera.SetAspect(renderer.SceneAspect()); // Source projection is never resized.
         scene.UpdateWorldMatrices();
-        renderer.Render(scene,settings,reverseOrder,frameLimit && frames+1 == frameLimit ? capture : std::filesystem::path{}); ++frames;
-        if (smoke && frames == 20) window.SetClientSize(960, 540);
-        if (smoke && frames == 40) window.SetClientSize(1280, 720);
+        auto endFrame=reconstructImage.empty()?frameLimit:reconstructionEndFrame;
+        if(imageOptions.Busy())endFrame=0;
+        else if(imageOptions.smoke=="transaction"&&frameLimit)endFrame=std::max(frameLimit,frames+1);
+        renderer.Render(scene,settings,reverseOrder,frameLimit && endFrame && frames+1 == endFrame ? capture : std::filesystem::path{}); ++frames;
+        if (smoke && !imageOptions.fixedSize && frames == 20) window.SetClientSize(960, 540);
+        if (smoke && !imageOptions.fixedSize && frames == 40) window.SetClientSize(1280, 720);
         if (smoke && frames == 60) window.TestMinimizeRestore();
-        if (frameLimit && frames >= frameLimit) break;
+        if (frameLimit && endFrame && frames >= endFrame){
+            if(!reconstructImage.empty()&&reconstructionRepeat>1&&reconstruction.manager.Status().state==ReconstructionState::Ready){
+                --reconstructionRepeat;reconstructionEndFrame=0;
+                if(!nextReconstructImage.empty())reconstructImage=std::exchange(nextReconstructImage,{});
+                reconstruction.manager.Start(reconstructImage,lightingOnlyJob);
+            }else break;
+        }
     }
     renderer.Finish();
+    imageOptions.Report(capture,scene,renderer,settings);
     window.SetMessageHandler({});
     const auto position = scene.camera.Position();
     Log("Camera position: " + std::to_string(position.x) + ", " + std::to_string(position.y) + ", " + std::to_string(position.z));
-    Log("Completed frames=" + std::to_string(frames)); return 0;
+    Log("Completed frames=" + std::to_string(frames));
+    return !reconstructImage.empty()&&reconstruction.manager.Status().state==ReconstructionState::Error?2:0;
 }
 }

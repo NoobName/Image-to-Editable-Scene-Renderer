@@ -1,4 +1,7 @@
 #pragma once
 namespace isr::package {
 inline constexpr char SchemaText[] = R"ISR_SCHEMA(@SCENE_PACKAGE_SCHEMA@)ISR_SCHEMA";
+inline constexpr char AppearanceSchemaText[] = R"ISR_SCHEMA(@APPEARANCE_SCHEMA@)ISR_SCHEMA";
+inline constexpr char AnalysisSchemaText[] = R"ISR_SCHEMA(@ANALYSIS_SCHEMA@)ISR_SCHEMA";
+inline constexpr char LightingSchemaText[] = R"ISR_SCHEMA(@LIGHTING_SCHEMA@)ISR_SCHEMA";
 }

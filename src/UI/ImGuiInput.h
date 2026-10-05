@@ -11,6 +11,7 @@ public:
     void SetRegion(RECT clientRect,bool hovered,bool blocked);
     bool HandleMessage(HWND,UINT,WPARAM,LPARAM);
     void Filter(InputState&) const;
+    void CancelDrag(){drag_=releasing_=false;}
 private:
     bool Contains(POINT) const;
     RECT region_{};

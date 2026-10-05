@@ -83,7 +83,7 @@ void DeviceContext::CheckMessages() {
     if (!infoQueue_) return;
     const auto count = infoQueue_->GetNumStoredMessagesAllowedByRetrievalFilter();
     bool failed = false;
-    for (UINT64 i = 0; i < count; ++i) {
+    for (UINT64 i = readMessages_; i < count; ++i) {
         SIZE_T size = 0; Check(infoQueue_->GetMessage(i, nullptr, &size));
         std::vector<uint8_t> bytes(size);
         auto* message = reinterpret_cast<D3D12_MESSAGE*>(bytes.data());
@@ -92,7 +92,9 @@ void DeviceContext::CheckMessages() {
         if (message->Severity <= D3D12_MESSAGE_SEVERITY_ERROR) { ++errors_; failed = true; }
         if (message->Severity == D3D12_MESSAGE_SEVERITY_WARNING) ++warnings_;
     }
-    infoQueue_->ClearStoredMessages();
+    // GPU preparation can append messages from another thread. Clearing the queue
+    // after reading a snapshot would silently discard those new validation errors.
+    readMessages_=count;
     if (failed) throw std::runtime_error("D3D12 validation error (see log)");
 }
 }

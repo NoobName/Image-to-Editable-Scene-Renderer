@@ -12,6 +12,7 @@ public:
     const std::string& Error() const{return error_;}
     D3D12_GPU_DESCRIPTOR_HANDLE SkyView() const{return heap_.Gpu(firstView_+3);}
     static std::filesystem::path DefaultPath();
+    void WriteViews(DescriptorAllocator&,UINT firstView)const; // Destination must not be in flight.
 private:
     DeviceContext& context_;
     DescriptorAllocator& heap_;

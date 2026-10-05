@@ -4,6 +4,8 @@
 #include "Assets/ModelLoader.h"
 #include <iostream>
 #include <cmath>
+#include <fstream>
+#include <chrono>
 using namespace isr;
 namespace {
 int checks=0;
@@ -13,6 +15,7 @@ bool Near(float a,float b) {return std::abs(a-b)<1e-4f;}
 int main() {try {
     const std::filesystem::path root=PACKAGE_FIXTURE_DIR;
     auto loaded=ScenePackageLoader{}.Load(root);
+    Require(!loaded.appearance,"Legacy fixture unexpectedly acquired source-image provenance");
     auto& scene=loaded.scene;
     Require(scene.lights.size()==2,"glTF default lights leaked into package");
     Require(Near(scene.camera.Position().x,8)&&Near(scene.camera.FarPlane(),200),"Package camera was replaced by glTF auto-framing");
@@ -63,5 +66,20 @@ int main() {try {
     }
     auto again=ScenePackageLoader{}.Load(root/"scene.json");scene.materials.back().metallic=.123f;
     Require(Near(again.scene.materials.back().metallic,1),"Independent load shares mutable material state");
+    // Transactional load: validation must finish before assignment replaces the edited scene.
+    const auto temporary=std::filesystem::temp_directory_path()/("isr-anchor-test-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    struct Cleanup{std::filesystem::path path;~Cleanup(){std::error_code error;std::filesystem::remove_all(path,error);}}cleanup{temporary};
+    std::filesystem::copy(root,temporary,std::filesystem::copy_options::recursive);
+    std::filesystem::create_directories(temporary/"debug");
+    {std::ofstream file(temporary/"debug/reconstruction.json");file<<"not a valid optional report";}
+    const auto legacy=ScenePackageLoader{}.Load(temporary);
+    Require(!legacy.observation->analysisMetadataDiagnostic.empty()&&legacy.observation->analysisMetadata.is_null(),"Optional report failure lacks a diagnostic");
+    Require(legacy.scene.entities.size()==again.scene.entities.size()&&!legacy.observation->CanDisplayImage(),"Broken optional report prevented legacy 3D loading");
+    std::filesystem::create_directories(temporary/"relighting");
+    {std::ofstream file(temporary/"relighting/relighting.json");file<<R"({"version":999})";}
+    again.scene.materials.back().metallic=.456f;const auto previousObservation=again.observation;bool rejected=false;
+    try{again=ScenePackageLoader{}.Load(temporary);}catch(const std::exception& error){rejected=std::string(error.what()).find("relighting/relighting.json")!=std::string::npos;}
+    Require(rejected&&Near(again.scene.materials.back().metallic,.456f),"Damaged extension replaced current scene or lacked diagnostic");
+    Require(again.observation==previousObservation,"Damaged extension replaced the current source observation");
     std::cout<<"ScenePackage: "<<checks<<" checks passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

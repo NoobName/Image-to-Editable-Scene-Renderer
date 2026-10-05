@@ -14,6 +14,7 @@ from .auxiliary_writer import write_auxiliary
 from .object_exporter import export_objects
 from .material_estimation_backend import MaterialEstimate
 from .material_assets import write_material_assets, material_glb_options
+from .appearance_assets import write_appearance
 
 
 def check_destination(output: Path) -> Path:
@@ -35,6 +36,7 @@ class SceneExporter:
         # Existing output assets are never recursively deleted or overwritten.
         with TemporaryDirectory(prefix=f".{output.name}-staging-", dir=output.parent) as staging:
             root = create_package(Path(staging) / "package")
+            appearance = write_appearance(root, image, analysis.geometry)
             # Keep the legacy image path as source-photo compatibility, never bind it as estimated albedo.
             Image.fromarray(image.rgb).save(root / "textures/base_color.png")
             estimated = isinstance(analysis.material, MaterialEstimate)
@@ -43,6 +45,11 @@ class SceneExporter:
             write_glb(root / "meshes/scene_mesh.glb", geometry, (root / color_path).read_bytes(),
                       **material_glb_options(root, analysis.material, True))
             auxiliary = write_auxiliary(root, analysis, geometry, original_rgb=image.rgb)
+            from .analysis_assets import write_analysis_maps
+            write_analysis_maps(root, image, analysis, appearance)
+            if analysis.lighting is not None:
+                from .lighting_assets import write_lighting_assets
+                write_lighting_assets(root, image, appearance, analysis.lighting)
             objects,decomposition = export_objects(root,image,analysis,geometry)
             if material_override:
                 for item in objects:
@@ -102,6 +109,8 @@ class SceneExporter:
                                 "Renderer viewport aspect can differ; use Frame all to fit the surface."]}
             (root / "debug/reconstruction.json").write_text(json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False)+"\n", encoding="utf-8")
             write_package(root, manifest)  # Reuses the v1 shared schema and file validation.
+            from .appearance_debug import write_diagnostic
+            write_diagnostic(root, appearance)
             # Recheck after writing: a concurrently populated output is never removed.
             check_destination(output)
             if output.exists():

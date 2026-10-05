@@ -1,8 +1,10 @@
 #include "Renderer/Renderer.h"
 #include "Core/Log.h"
 #include "Renderer/FrameCapture.h"
+#include "Renderer/AnalysisCapture.h"
+#include "Assets/AssetIO.h"
 namespace isr {
-Renderer::Renderer(HWND window, uint32_t width, uint32_t height, bool warp, Demo demo, const Scene& scene, bool ui,const std::filesystem::path& environment)
+Renderer::Renderer(HWND window, uint32_t width, uint32_t height, bool warp, Demo demo, const Scene& scene, bool ui,const std::filesystem::path& environment,std::shared_ptr<const SourceObservation> source)
     : context_(warp), rtvHeap_(context_.Device(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, FrameCount+2),
       dsvHeap_(context_.Device(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8),
       resourceHeap_(context_.Device(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, static_cast<UINT>(scene.materials.size()*MaterialTextureCount+128), true),
@@ -26,10 +28,16 @@ Renderer::Renderer(HWND window, uint32_t width, uint32_t height, bool warp, Demo
     Check(context_.Device()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frames_[0]->commandAllocator.Get(), nullptr, IID_PPV_ARGS(&commandList_)));
     if (demo_ == Demo::Triangle) triangle_ = std::make_unique<TrianglePass>(context_.Device(), commandList_.Get());
     if (demo_ == Demo::Scene) scenePass_ = std::make_unique<ScenePass>(context_.Device(), commandList_.Get(), resourceHeap_, samplerHeap_, scene);
+    if(scenePass_&&source&&source->CanDisplayImage())sourceImage_=std::make_unique<SourceImagePass>(context_.Device(),commandList_.Get(),resourceHeap_,*source->anchor->pixels);
+    if(sourceImage_)analysis_=std::make_unique<AnalysisTextures>(context_.Device(),commandList_.Get(),resourceHeap_,source->analysisMaps);
+    if(sourceImage_)lightingPreview_=std::make_unique<LightingPreview>(context_.Device(),commandList_.Get(),resourceHeap_,source->lighting);
     Check(commandList_->Close());
     ID3D12CommandList* lists[] = {commandList_.Get()}; context_.Queue()->ExecuteCommandLists(1, lists);
     context_.Flush(); if (triangle_) triangle_->FinishUpload();
     if (scenePass_) scenePass_->FinishUpload();
+    if(sourceImage_)sourceImage_->FinishUpload();
+    if(analysis_)analysis_->FinishUpload();
+    if(lightingPreview_)lightingPreview_->FinishUpload();
     if (scenePass_){
         postProcessing_=std::make_unique<PostProcessingPipeline>(context_.Device(),resourceHeap_);
         postProcessing_->Resize(context_.Device(),sceneWidth_,sceneHeight_);
@@ -45,8 +53,31 @@ Renderer::Renderer(HWND window, uint32_t width, uint32_t height, bool warp, Demo
         CreateSceneTargets(width,height);
     }
     context_.CheckMessages();
+    session_.Publish(std::move(source));
 }
-Renderer::~Renderer() { try { Finish(); } catch (const std::exception& e) { Log(e.what()); } }
+Renderer::~Renderer() { if(preparing_.valid())preparing_.wait();try { Finish(); } catch (const std::exception& e) { Log(e.what()); } }
+void Renderer::PrepareScene(std::shared_ptr<const ScenePackage> package){
+    if(preparing_.valid()||demo_!=Demo::Scene)throw std::runtime_error("A scene upload is already active or scene rendering is disabled");
+    ComPtr<ID3D12Device> device=context_.Device();
+    preparing_=std::async(std::launch::async,[device,package]{return std::make_unique<PreparedScene>(device.Get(),package->scene,package->observation);});
+}
+bool Renderer::ScenePrepared()const{return preparing_.valid()&&preparing_.wait_for(std::chrono::seconds(0))==std::future_status::ready;}
+void Renderer::CommitPreparedScene(bool discard){
+    if(!ScenePrepared())throw std::runtime_error("GPU scene is not ready");
+    auto prepared=preparing_.get();if(discard)return;
+    environment_->WriteViews(prepared->resources,prepared->lighting.index+1);
+    // Retain every resource referenced by previous frames until its graphics fence retires.
+    retired_.reserve(retired_.size()+1); // Allocation failure must precede moving any active resource.
+    const auto fence=context_.Signal();
+    retired_.push_back({fence,std::move(activeScene_),std::move(scenePass_),std::move(shadowPass_),std::move(sourceImage_),std::move(analysis_),std::move(lightingPreview_)});
+    activeScene_=std::move(prepared);session_.Publish(activeScene_->observation);
+    if(inspector_)inspector_->ResetSelection();
+    // Diagnostics must not turn a completed GPU/source publication into a failed CPU scene swap.
+    try{
+        Log("GPU scene committed without blocking upload on render thread");
+        if(session_.CanDisplayImage())Log("Source session committed: "+session_.Source()->anchor->metadata["sourceId"].get<std::string>()+" root="+PathUtf8(session_.Source()->packageRoot));
+    }catch(...){OutputDebugStringA("Scene committed; diagnostic output unavailable.\n");}
+}
 void Renderer::CreateTargets() {
     for (UINT i = 0; i < FrameCount; ++i) {
         Check(swapChain_->GetBuffer(i, IID_PPV_ARGS(&targets_[i])));
@@ -83,23 +114,28 @@ void Renderer::Resize(uint32_t width, uint32_t height) {
     for (auto& target : targets_) target.Reset();
     Check(swapChain_->ResizeBuffers(FrameCount, width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 0));
     width_ = width; height_ = height; CreateTargets(); context_.CheckMessages();
-    if(scenePass_&&!inspector_)CreateSceneTargets(width,height);
+    if((scenePass_||activeScene_)&&!inspector_)CreateSceneTargets(width,height);
     Log("Resize: " + std::to_string(width) + "x" + std::to_string(height));
 }
 void Renderer::UpdateUI(Scene& scene,RenderSettings& settings,InputState& input){
     if(inspector_){
-        inspector_->Update(scene,settings,input,*environment_);
+        inspector_->Update(scene,settings,input,*environment_,session_);
         const auto w=inspector_->ViewportWidth(),h=inspector_->ViewportHeight();
         if(w!=sceneWidth_||h!=sceneHeight_){context_.Flush();CreateSceneTargets(w,h);Log("Viewport resize: "+std::to_string(w)+"x"+std::to_string(h));}
     }
-    if(scenePass_)scene.camera.SetAspect(float(sceneWidth_)/float(sceneHeight_));
+    if((scenePass_||activeScene_)&&session_.Mode()==WorkMode::Scene3D)scene.camera.SetAspect(float(sceneWidth_)/float(sceneHeight_));
     if(environment_){
-        if(!settings.environmentPath.empty()&&settings.environmentPath!=environment_->Path())environment_->TryLoad(settings.environmentPath);
+        if(!settings.environmentPath.empty()&&settings.environmentPath!=environment_->Path()){
+            if(environment_->TryLoad(settings.environmentPath)&&activeScene_)environment_->WriteViews(activeScene_->resources,activeScene_->lighting.index+1);
+        }
         settings.environmentPath=environment_->Path();
     }
 }
 bool Renderer::HandleMessage(HWND window,UINT message,WPARAM wp,LPARAM lp){return inspector_&&inspector_->HandleMessage(window,message,wp,lp);}
 void Renderer::Render(const Scene& scene, const RenderSettings& settings, bool reverseOrder, const std::filesystem::path& capture) {
+    std::erase_if(retired_,[&](const RetiredScene& item){return context_.Completed()>=item.fence;});
+    auto* scenePass=activeScene_?activeScene_->scene.get():scenePass_.get();
+    auto* shadowPass=activeScene_?activeScene_->shadow.get():shadowPass_.get();
     const UINT index = swapChain_->GetCurrentBackBufferIndex();
     auto& frame = *frames_[index]; frame.Begin(context_);
     Check(commandList_->Reset(frame.commandAllocator.Get(), nullptr));
@@ -113,27 +149,56 @@ void Renderer::Render(const Scene& scene, const RenderSettings& settings, bool r
     const auto dsv = dsvHeap_.Cpu(0);
     if (depth_) commandList_->ClearDepthStencilView(dsv,D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,nullptr);
     commandList_->OMSetRenderTargets(1, &handle, FALSE, depth_ ? &dsv : nullptr);
-    const auto renderWidth=scenePass_?sceneWidth_:width_,renderHeight=scenePass_?sceneHeight_:height_;
+    const auto renderWidth=scenePass?sceneWidth_:width_,renderHeight=scenePass?sceneHeight_:height_;
     const D3D12_VIEWPORT viewport{0,0,static_cast<float>(renderWidth),static_cast<float>(renderHeight),0,1};
     const D3D12_RECT scissor{0,0,static_cast<LONG>(renderWidth),static_cast<LONG>(renderHeight)};
     commandList_->RSSetViewports(1,&viewport); commandList_->RSSetScissorRects(1,&scissor);
     if (triangle_) triangle_->Draw(commandList_.Get(), frame);
     ID3D12DescriptorHeap* heaps[]={resourceHeap_.Heap(),samplerHeap_.Heap()};commandList_->SetDescriptorHeaps(2,heaps);
+    ID3D12DescriptorHeap* sceneHeaps[]={activeScene_?activeScene_->resources.Heap():resourceHeap_.Heap(),activeScene_?activeScene_->samplers.Heap():samplerHeap_.Heap()};
     std::unique_ptr<FrameCapture> hdrReadback;
-    if (scenePass_) {
-        const auto shadow=shadowPass_->Draw(commandList_.Get(),frame,scene,scenePass_->Assets(),settings);
+    std::unique_ptr<AnalysisCapture> analysisReadback;
+    std::unique_ptr<LightingCapture> lightingReadback;
+    const bool imageMode=session_.Mode()==WorkMode::ImageRelighting&&session_.CanDisplayImage();
+    if(imageMode){
+        const auto output=inspector_?rtvHeap_.Cpu(FrameCount+1):handle;
+        if(viewportColor_)viewportColor_->Transition(commandList_.Get(),D3D12_RESOURCE_STATE_RENDER_TARGET);
+        commandList_->SetDescriptorHeaps(2,sceneHeaps);
+        const auto* imagePass=activeScene_?activeScene_->sourceImage.get():sourceImage_.get();
+        if(!imagePass)throw std::runtime_error("Source session and GPU image were not committed together");
+        if(int(session_.imageView)<2)imagePass->Draw(commandList_.Get(),output,sceneWidth_,sceneHeight_,session_.imageView);
+        else if(int(session_.imageView)>=15){
+            const auto* preview=activeScene_?activeScene_->lightingPreview.get():lightingPreview_.get();
+            const auto& size=session_.Source()->anchor->sourceSize;
+            preview->Draw(commandList_.Get(),output,sceneWidth_,sceneHeight_,size[0],size[1],size_t(session_.imageView)-15,session_.lighting.cacheValid);
+        }else{
+            const auto* analysis=activeScene_?activeScene_->analysis.get():analysis_.get();
+            const auto& size=session_.Source()->anchor->sourceSize;
+            analysis->Draw(commandList_.Get(),output,sceneWidth_,sceneHeight_,size[0],size[1],size_t(session_.imageView)-2);
+        }
+        if(viewportColor_)viewportColor_->Transition(commandList_.Get(),D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        auto* maps=activeScene_?activeScene_->analysis.get():analysis_.get();
+        if(!capture.empty()&&maps&&maps->Data())analysisReadback=std::make_unique<AnalysisCapture>(context_.Device(),commandList_.Get(),*maps);
+        auto* lightingMaps=activeScene_?activeScene_->lightingPreview.get():lightingPreview_.get();
+        if(!capture.empty()&&lightingMaps&&lightingMaps->Data())lightingReadback=std::make_unique<LightingCapture>(context_.Device(),commandList_.Get(),*lightingMaps);
+    }else if (scenePass) {
+        commandList_->SetDescriptorHeaps(2,sceneHeaps);
+        const auto shadow=shadowPass->Draw(commandList_.Get(),frame,scene,scenePass->Assets(),settings);
         commandList_->RSSetViewports(1,&viewport);commandList_->RSSetScissorRects(1,&scissor);
         hdr_->Transition(commandList_.Get(),D3D12_RESOURCE_STATE_RENDER_TARGET);
         const auto hdrRtv=rtvHeap_.Cpu(FrameCount);
         constexpr float background[]={0.012f,0.018f,0.028f,0};
         commandList_->ClearRenderTargetView(hdrRtv,background,0,nullptr);
         commandList_->OMSetRenderTargets(1,&hdrRtv,FALSE,&dsv);
+        commandList_->SetDescriptorHeaps(2,heaps);
         skyPass_->Draw(commandList_.Get(),frame,scene.camera,environment_->SkyView(),settings);
-        scenePass_->Draw(commandList_.Get(), frame, scene, settings,shadow,lightingViews_.gpu,float(EnvironmentBaker::PrefilterMips-1), reverseOrder);
+        commandList_->SetDescriptorHeaps(2,sceneHeaps);
+        scenePass->Draw(commandList_.Get(), frame, scene, settings,shadow,activeScene_?activeScene_->lighting.gpu:lightingViews_.gpu,float(EnvironmentBaker::PrefilterMips-1), reverseOrder);
         if(!capture.empty())hdrReadback=std::make_unique<FrameCapture>(context_.Device(),commandList_.Get(),hdr_->Resource());
         hdr_->Transition(commandList_.Get(),D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         const auto output=inspector_?rtvHeap_.Cpu(FrameCount+1):handle;
         if(viewportColor_)viewportColor_->Transition(commandList_.Get(),D3D12_RESOURCE_STATE_RENDER_TARGET);
+        commandList_->SetDescriptorHeaps(2,heaps);
         postProcessing_->Draw(commandList_.Get(),{hdr_.get(),hdrSrv_.gpu},output,settings);
         if(viewportColor_)viewportColor_->Transition(commandList_.Get(),D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
     }
@@ -144,7 +209,10 @@ void Renderer::Render(const Scene& scene, const RenderSettings& settings, bool r
     commandList_->ResourceBarrier(1, &barrier); Check(commandList_->Close());
     ID3D12CommandList* lists[] = {commandList_.Get()}; context_.Queue()->ExecuteCommandLists(1, lists);
     Check(swapChain_->Present(1, 0)); frame.fenceValue = context_.Signal(); context_.CheckMessages();
-    if (readback) { context_.Wait(frame.fenceValue); readback->Save(capture); if(hdrReadback)hdrReadback->LogHdrStatistics();context_.CheckMessages(); }
+    if (readback) { context_.Wait(frame.fenceValue); readback->Save(capture); if(hdrReadback)hdrReadback->LogHdrStatistics();
+        if(analysisReadback)analysisReadback->Save(capture);
+        if(lightingReadback)lightingReadback->Save(capture);
+        if(imageMode)Log("Source image output: RGBA8 UNORM; no floating HDR/Look pass");context_.CheckMessages(); }
 }
 void Renderer::Finish() { context_.Flush(); context_.CheckMessages(); }
 }

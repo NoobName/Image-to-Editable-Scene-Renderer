@@ -6,6 +6,11 @@ param(
     [switch]$Interactive,
     [switch]$Warp,
     [switch]$Capture,
+    [ValidateSet('scene','image')][string]$WorkMode='scene',
+    [ValidateSet('original','grid','depth','geometry-normal','world-normal','position','validity','region','albedo','roughness','metallic','geometry-confidence','material-confidence','region-confidence','tangent-normal','shading-proxy','old-shading','lighting-residual','fit-mask')][string]$ImageView='original',
+    [ValidateSet('cycle','input','transaction','views','lighting-target','lighting-source')][string]$ImageSmoke,
+    [ValidatePattern('^[0-9]+x[0-9]+$')][string]$WindowSize='1280x720',
+    [switch]$FixedSize,
     [switch]$ReverseOrder,
     [switch]$CameraSmoke,
     [string]$Model,
@@ -31,6 +36,8 @@ param(
     [ValidateSet('all','directional','point','none')][string]$Lights='all',
     [switch]$MaterialSmoke,
     [string]$ObjectSmoke,
+    [ValidateSet('baseline','move','rotate','scale','material','roughness','metallic','normal','sun','light','environment','exposure','restore-material','restore-transform')][string]$EditorSmoke,
+    [ValidatePattern('^[a-zA-Z0-9_-]{1,64}$')][string]$EditorObject,
     [switch]$UI,
     [string]$Environment,
     [switch]$NoIBL,
@@ -51,6 +58,9 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 $executable = Join-Path $projectRoot "build/$Configuration/ImageSceneRenderer.exe"
 $arguments = "--log generated/$LogName.log"
 $arguments += " --demo $Demo"
+$arguments += " --work-mode $WorkMode --image-view $ImageView --window-size $WindowSize"
+if($FixedSize){$arguments += ' --fixed-size'}
+if($ImageSmoke){$arguments += " --image-smoke $ImageSmoke"}
 $arguments += " --render-mode $RenderMode --ambient $($Ambient.ToString([System.Globalization.CultureInfo]::InvariantCulture)) --lights $Lights"
 if (!$Package -or $PSBoundParameters.ContainsKey('Exposure')) { $arguments += " --exposure $($Exposure.ToString([System.Globalization.CultureInfo]::InvariantCulture))" }
 if ($MaterialSmoke) { $arguments += ' --material-smoke' }
@@ -59,6 +69,8 @@ if ($ObjectSmoke) {
     $arguments += " --object-smoke $ObjectSmoke"
 }
 if ($UI) { $arguments += ' --ui' }
+if ($EditorSmoke) { $arguments += " --editor-smoke $EditorSmoke" }
+if ($EditorObject) { $arguments += " --editor-object $EditorObject" }
 if ($NoIBL) { $arguments += ' --no-ibl' }
 if ($NoSky) { $arguments += ' --no-sky' }
 if ($NoShadows) { $arguments += ' --no-shadows' }
@@ -96,7 +108,8 @@ if ($Package) {
     if ($Package.Contains('"')) { throw 'Package path cannot contain quotes.' }
     $arguments += ' --package "' + $Package + '"'
 }
-$process = Start-Process -FilePath $executable -WorkingDirectory $projectRoot -ArgumentList $arguments -PassThru
+$windowStyle = if ($Interactive) { 'Normal' } else { 'Hidden' }
+$process = Start-Process -FilePath $executable -WorkingDirectory $projectRoot -ArgumentList $arguments -WindowStyle $windowStyle -PassThru
 if ($Interactive) { Write-Output "Started PID=$($process.Id)"; exit 0 }
 if (!$process.WaitForExit(60000)) { throw 'Smoke process did not finish within 60 seconds. Inspect the application.' }
 $logText = Get-Content (Join-Path $projectRoot "generated/$LogName.log") -Raw

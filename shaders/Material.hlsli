@@ -14,6 +14,7 @@ Surface ReadSurface(PixelInput input,bool front) {
     float4 base=baseMap.Sample(baseSampler,UV(input,0))*baseColor*input.color;
     s.albedo=base.rgb;s.alpha=flags.x==2?base.a:1;
     float4 mr=mrMap.Sample(mrSampler,UV(input,1));
+    if(extras.w>0)mr=1; // Non-destructive editor override; raw Estimated views retain the source map.
     s.metallic=saturate(factors.x*mr.b);s.roughness=saturate(factors.y*mr.g);
     s.ao=saturate(factors.z)*lerp(1,aoMap.Sample(aoSampler,UV(input,4)).r,saturate(extras.x));
     s.emissive=emissiveMap.Sample(emissiveSampler,UV(input,3)).rgb*emissiveCutoff.xyz;

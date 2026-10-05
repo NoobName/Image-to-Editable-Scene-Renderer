@@ -4,10 +4,11 @@
 #include <set>
 int wmain(int argc,wchar_t** argv) {
     try {
-        if(argc<2||argc>3||(argc==3&&std::wstring(argv[2])!=L"--objects")) throw std::runtime_error("Usage: ValidateScenePackage <package directory or scene.json> [--objects]");
+        if(argc<2||argc>3||(argc==3&&std::wstring(argv[2])!=L"--objects"&&std::wstring(argv[2])!=L"--appearance")) throw std::runtime_error("Usage: ValidateScenePackage <package directory or scene.json> [--objects|--appearance]");
         const auto manifest=isr::package::ReadManifest(argv[1]);
         const auto package=isr::ScenePackageLoader{}.Load(argv[1]);
-        if(argc==2)std::cout << manifest.data.dump(2) << '\n';
+        if(argc==3&&std::wstring(argv[2])==L"--appearance")std::cout<<(package.appearance?package.appearance->metadata:isr::package::Json{{"status","absent"}}).dump(2)<<'\n';
+        else if(argc==2)std::cout << manifest.data.dump(2) << '\n';
         else {
             isr::package::Json report={{"meshCount",package.scene.meshes.size()},{"materialCount",package.scene.materials.size()},{"textureCount",package.scene.textures.size()},{"objects",isr::package::Json::array()}};
             report["materialEvidence"]=isr::package::Json::array();

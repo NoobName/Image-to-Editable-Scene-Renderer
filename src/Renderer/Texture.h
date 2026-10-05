@@ -8,6 +8,7 @@ public:
     Texture(const Texture&) = delete;
     Texture& operator=(const Texture&) = delete;
     ID3D12Resource* Resource() const { return resource_.Get(); }
+    D3D12_RESOURCE_STATES State()const{return state_;}
     void Transition(ID3D12GraphicsCommandList*, D3D12_RESOURCE_STATES next);
 private:
     ComPtr<ID3D12Resource> resource_;

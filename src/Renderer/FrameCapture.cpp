@@ -56,4 +56,17 @@ void FrameCapture::LogHdrStatistics() const {
     Log("HDR statistics: max="+std::to_string(maximum)+" mean="+std::to_string(total/(width_*height_*3))+" nonfinite="+std::to_string(nonfinite));
     if(nonfinite)throw std::runtime_error("Nonfinite HDR pixel detected");
 }
+unsigned FrameCapture::CompareRgb(const ImageData& expected,unsigned tolerance)const{
+    if(format_!=DXGI_FORMAT_R8G8B8A8_UNORM||width_!=expected.width||height_!=expected.height||expected.rgba.size()!=size_t(width_)*height_*4)
+        throw std::runtime_error("Source RGB comparison requires matching RGBA8 dimensions");
+    void* mapped{};const D3D12_RANGE read{0,static_cast<SIZE_T>(size_)};Check(readback_->Map(0,&read,&mapped));
+    unsigned maximum=0;size_t changed=0;
+    for(UINT y=0;y<height_;++y){const auto* row=static_cast<const uint8_t*>(mapped)+footprint_.Offset+size_t(y)*footprint_.Footprint.RowPitch;
+        for(UINT x=0;x<width_;++x)for(UINT c=0;c<3;++c){const auto error=unsigned(std::abs(int(row[x*4+c])-int(expected.rgba[(size_t(y)*width_+x)*4+c])));
+            maximum=std::max(maximum,error);changed+=error!=0;}}
+    const D3D12_RANGE written{0,0};readback_->Unmap(0,&written);
+    Log("Source RGB comparison: maxLSB="+std::to_string(maximum)+" changedChannels="+std::to_string(changed));
+    if(maximum>tolerance)throw std::runtime_error("Source image exceeds RGB8 error tolerance");
+    return maximum;
+}
 }

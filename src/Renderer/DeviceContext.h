@@ -20,6 +20,7 @@ public:
     void Flush();
     void CheckMessages();
     uint64_t Completed() const;
+    uint64_t Warnings() const { return warnings_; }
 private:
     ComPtr<IDXGIFactory4> factory_;
     ComPtr<ID3D12Device> device_;
@@ -29,5 +30,6 @@ private:
     UniqueHandle event_;
     uint64_t nextFence_ = 1;
     uint64_t warnings_ = 0, errors_ = 0;
+    uint64_t readMessages_ = 0;
 };
 }

@@ -1,6 +1,8 @@
 #pragma once
 #include "Scene/Scene.h"
 #include "Scene/LookParameters.h"
+#include "ScenePackage/AppearanceAnchor.h"
+#include "ScenePackage/SourceObservation.h"
 #include <filesystem>
 #include <map>
 namespace isr {
@@ -16,6 +18,8 @@ struct ScenePackage {
     std::filesystem::path root;
     // Opaque analysis artifacts. No EXR decoder or AI runtime is involved.
     std::map<std::string,std::filesystem::path> auxiliary;
+    std::optional<package::AppearanceAnchor> appearance;
+    std::shared_ptr<const SourceObservation> observation;
 };
 class ScenePackageLoader {
 public:

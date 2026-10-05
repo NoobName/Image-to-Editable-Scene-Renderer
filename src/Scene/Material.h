@@ -23,6 +23,7 @@ struct Material {
     float alphaCutoff = 0.5f;
     AlphaMode alphaMode = AlphaMode::Opaque;
     bool doubleSided = false, unlit = false;
+    bool overrideMetallicRoughness = false; // Editor: use constant values without changing source maps.
     std::array<TextureSlot, MaterialTextureCount> textures;
     std::string albedoSource="authored",normalSource="authored";
 };

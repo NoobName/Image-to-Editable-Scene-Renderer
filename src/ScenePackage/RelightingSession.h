@@ -1,0 +1,36 @@
+#pragma once
+#include "ScenePackage/SourceObservation.h"
+#include "Scene/WorkMode.h"
+#include <algorithm>
+#include <stdexcept>
+namespace isr {
+struct ImageRect {
+    float x{},y{},width{},height{},scale{};
+};
+inline ImageRect FitSourceImage(uint32_t sw,uint32_t sh,uint32_t vw,uint32_t vh){
+    if(!sw||!sh||!vw||!vh)throw std::invalid_argument("Image fit dimensions must be positive");
+    const double scale=std::min(double(vw)/double(sw),double(vh)/double(sh));
+    const double w=double(sw)*scale,h=double(sh)*scale;
+    return {float((double(vw)-w)*.5),float((double(vh)-h)*.5),float(w),float(h),float(scale)};
+}
+class RelightingSession {
+public:
+    WorkMode Mode()const{return mode_;}
+    bool CanDisplayImage()const{return source_&&source_->CanDisplayImage();}
+    bool SetMode(WorkMode mode){if(mode==WorkMode::ImageRelighting&&!CanDisplayImage())return false;mode_=mode;return true;}
+    const std::shared_ptr<const SourceObservation>& Source()const{return source_;}
+    // Only call at a successful GPU document commit. A failed/cancelled load never reaches this.
+    void Publish(std::shared_ptr<const SourceObservation> source)noexcept{
+        source_=std::move(source);++revision_;
+        lighting.Publish(source_?source_->lighting.get():nullptr);
+        if(!CanDisplayImage())mode_=WorkMode::Scene3D;
+    }
+    uint64_t Revision()const{return revision_;}
+    ImageDebugView imageView=ImageDebugView::Original;
+    LightingSession lighting;
+private:
+    WorkMode mode_=WorkMode::Scene3D;
+    uint64_t revision_=0;
+    std::shared_ptr<const SourceObservation> source_;
+};
+}

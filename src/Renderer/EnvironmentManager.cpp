@@ -28,12 +28,15 @@ void EnvironmentManager::Load(const std::filesystem::path& requested){
     }
     // Publish only a complete environment. Failed decode/bake retains the previous resource set.
     current_=std::move(maps);path_=path;error_.clear();
-    auto* device=context_.Device();EnvironmentBaker::CubeSrv(device,current_.irradiance.Get(),1,heap_.Cpu(firstView_));
-    EnvironmentBaker::CubeSrv(device,current_.prefilter.Get(),EnvironmentBaker::PrefilterMips,heap_.Cpu(firstView_+1));
-    EnvironmentBaker::ImageSrv(device,baker_.BrdfLut(),1,heap_.Cpu(firstView_+2));
-    EnvironmentBaker::CubeSrv(device,current_.sky.Get(),EnvironmentBaker::SkyMips,heap_.Cpu(firstView_+3));
+    WriteViews(heap_,firstView_);
     if(std::find(available_.begin(),available_.end(),path)==available_.end())available_.push_back(path);
     Log("Environment active: "+PathUtf8(path));
 }
 bool EnvironmentManager::TryLoad(const std::filesystem::path& path){try{Load(path);return true;}catch(const std::exception& e){error_=e.what();Log("Environment load failed; retaining previous environment: "+error_);return false;}}
+void EnvironmentManager::WriteViews(DescriptorAllocator& heap,UINT first)const{
+    auto* device=context_.Device();EnvironmentBaker::CubeSrv(device,current_.irradiance.Get(),1,heap.Cpu(first));
+    EnvironmentBaker::CubeSrv(device,current_.prefilter.Get(),EnvironmentBaker::PrefilterMips,heap.Cpu(first+1));
+    EnvironmentBaker::ImageSrv(device,baker_.BrdfLut(),1,heap.Cpu(first+2));
+    EnvironmentBaker::CubeSrv(device,current_.sky.Get(),EnvironmentBaker::SkyMips,heap.Cpu(first+3));
+}
 }

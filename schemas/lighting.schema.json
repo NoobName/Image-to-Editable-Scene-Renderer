@@ -1,0 +1,558 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceSha256": {
+      "type": "string",
+      "minLength": 1
+    },
+    "analysisSize": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2048
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "directionConvention": {
+      "const": "light-travel-lh-camera"
+    },
+    "scaleConvention": {
+      "const": "median-luminance-proxy-fixed-exposure-albedo"
+    },
+    "sourceLighting": {
+      "type": "object",
+      "properties": {
+        "direction": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "direct": {
+          "type": "object",
+          "properties": {
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 64
+            },
+            "color": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "intensity",
+            "color"
+          ],
+          "additionalProperties": false
+        },
+        "ambient": {
+          "type": "object",
+          "properties": {
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 64
+            },
+            "color": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "intensity",
+            "color"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "enum": [
+            "estimated-baseline",
+            "unreliable-baseline",
+            "manual-test",
+            "manual-calibration"
+          ]
+        }
+      },
+      "required": [
+        "direction",
+        "direct",
+        "ambient",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "targetLighting": {
+      "type": "object",
+      "properties": {
+        "direction": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "direct": {
+          "type": "object",
+          "properties": {
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 64
+            },
+            "color": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "intensity",
+            "color"
+          ],
+          "additionalProperties": false
+        },
+        "ambient": {
+          "type": "object",
+          "properties": {
+            "intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 64
+            },
+            "color": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "intensity",
+            "color"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "enum": [
+            "estimated-baseline",
+            "unreliable-baseline",
+            "manual-test",
+            "manual-calibration"
+          ]
+        }
+      },
+      "required": [
+        "direction",
+        "direct",
+        "ambient",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fit": {
+      "type": "object",
+      "properties": {
+        "backend": {
+          "enum": [
+            "robust-directional-ambient",
+            "manual-test"
+          ]
+        },
+        "status": {
+          "enum": [
+            "fitted",
+            "low-confidence",
+            "degenerate",
+            "manual"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "identifiable": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "maxItems": 32
+        },
+        "normalEigenvalues": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": -1e-10,
+            "maximum": 2
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "directionGap": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "validPixels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalPixels": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "validFraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "beforeRMSE": {
+          "type": "number",
+          "minimum": 0
+        },
+        "afterRMSE": {
+          "type": "number",
+          "minimum": 0
+        },
+        "robustLoss": {
+          "type": "number",
+          "minimum": 0
+        },
+        "normalization": {
+          "type": "number",
+          "minimum": 0.000001
+        },
+        "exposureEV": {
+          "const": 0
+        },
+        "albedoGain": {
+          "const": 1
+        },
+        "huberDelta": {
+          "const": 0.08
+        },
+        "excludedCounts": {
+          "type": "object",
+          "properties": {
+            "invalid-normal": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "black-albedo": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "saturated-rgb": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dark-rgb": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reflective-material": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "excluded-region": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "invalid-normal",
+            "black-albedo",
+            "saturated-rgb",
+            "dark-rgb",
+            "reflective-material",
+            "excluded-region"
+          ],
+          "additionalProperties": false
+        },
+        "regions": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pixels": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "supported": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "meanResidual": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "label",
+              "pixels",
+              "supported",
+              "meanResidual"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "inputProvenance": {
+          "type": "object",
+          "properties": {
+            "materialBackend": {
+              "type": "string",
+              "minLength": 1
+            },
+            "excludedRegionNames": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 1024
+            },
+            "normalSpace": {
+              "const": "lh-camera"
+            }
+          },
+          "required": [
+            "materialBackend",
+            "excludedRegionNames",
+            "normalSpace"
+          ],
+          "additionalProperties": false
+        },
+        "albedoSource": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "backend",
+        "status",
+        "confidence",
+        "identifiable",
+        "reasons",
+        "normalEigenvalues",
+        "directionGap",
+        "validPixels",
+        "totalPixels",
+        "validFraction",
+        "beforeRMSE",
+        "afterRMSE",
+        "robustLoss",
+        "normalization",
+        "exposureEV",
+        "albedoGain",
+        "huberDelta",
+        "excludedCounts",
+        "regions",
+        "inputProvenance",
+        "albedoSource"
+      ],
+      "additionalProperties": false
+    },
+    "maps": {
+      "type": "object",
+      "properties": {
+        "proxy": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "format": {
+              "enum": [
+                "RGBA32_FLOAT",
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "oldShading": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "format": {
+              "enum": [
+                "RGBA32_FLOAT",
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "residual": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "format": {
+              "enum": [
+                "RGBA32_FLOAT",
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "fitMask": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "format": {
+              "enum": [
+                "RGBA32_FLOAT",
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "proxy",
+        "oldShading",
+        "residual",
+        "fitMask"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "version",
+    "sourceId",
+    "sourceSha256",
+    "analysisSize",
+    "directionConvention",
+    "scaleConvention",
+    "sourceLighting",
+    "targetLighting",
+    "inputs",
+    "fit",
+    "maps"
+  ],
+  "additionalProperties": false,
+  "title": "Original Lighting Baseline v1 (no relighted RGB)"
+}

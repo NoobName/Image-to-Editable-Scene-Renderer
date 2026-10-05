@@ -40,9 +40,12 @@ void LookDevelopmentUI::SetViewportTexture(ID3D12Resource* texture){
     srv.Shader4ComponentMapping=D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;srv.Texture2D.MipLevels=1;
     context_.Device()->CreateShaderResourceView(texture,&srv,heap_.Cpu(ViewportSlot));
 }
-void LookDevelopmentUI::Update(Scene& scene,RenderSettings& settings,InputState& input,EnvironmentManager& environment){
+void LookDevelopmentUI::Update(Scene& scene,RenderSettings& settings,InputState& input,EnvironmentManager& environment,RelightingSession& session){
+    if(!edit_.Captured())edit_.Capture(scene);
     ImGui_ImplDX12_NewFrame();ImGui_ImplWin32_NewFrame();ImGui::NewFrame();
-    DrawPanels(scene,settings,environment);input_.Filter(input);ImGui::Render();
+    DrawPanels(scene,settings,environment,session);input_.Filter(input);
+    if(modeChanged_){input_.CancelDrag();viewportTools_.Reset();}
+    if(toolMouse_||modeChanged_||session.Mode()==WorkMode::ImageRelighting){input.rightMouse=false;input.ClearDeltas();input.keys.fill(false);}ImGui::Render();
 }
 void LookDevelopmentUI::Draw(ID3D12GraphicsCommandList* list){ID3D12DescriptorHeap* heaps[]={heap_.Heap()};list->SetDescriptorHeaps(1,heaps);ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(),list);}
 }

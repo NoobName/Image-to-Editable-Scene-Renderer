@@ -1,5 +1,5 @@
 """Orchestration depends on backend interfaces; Dummy is a composition choice."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from .depth_backend import DepthBackend, DummyDepthBackend
 from .normal_backend import NormalBackend, DummyNormalBackend
@@ -12,6 +12,8 @@ from .geometry_builder import GeometryBuilder
 from .scene_exporter import SceneExporter, check_destination
 from .geometry_backend import GeometryEstimationBackend, DummyGeometryBackend, validate_prediction
 from .scene_decomposer import resolve_regions
+from .lighting_solver import RobustDirectionalAmbientBackend
+from .lighting_backend import LightingEstimationBackend, make_lighting_input
 
 
 @dataclass
@@ -25,8 +27,10 @@ class ReconstructionPipeline:
     scene_exporter: SceneExporter = field(default_factory=SceneExporter)
     min_region_pixels: int = 64
     max_regions: int = 32
+    lighting_backend: LightingEstimationBackend = field(default_factory=RobustDirectionalAmbientBackend)
 
-    def run(self, input_path: Path, output: Path, max_size: int = 1024, progress=print) -> Path:
+    def run(self, input_path: Path, output: Path, max_size: int = 1024, progress=print, stage_event=None) -> Path:
+        event = stage_event or (lambda *args: None)
         output = check_destination(output)
         image = load_image(input_path, max_size)
         progress(f"Input: {image.width} x {image.height}, sRGB (oriented/resized)")
@@ -34,25 +38,42 @@ class ReconstructionPipeline:
         backend = self.geometry_backend or DummyGeometryBackend(self.depth_backend, self.normal_backend,
                                                                  self.geometry_builder.fov_y_degrees)
         progress(f"geometry: {backend.name}")
+        event("geometry", "running", backend.name)
         try:
             prediction = backend.predict(image)
         finally:
             backend.release()
         validate_prediction(image, prediction)
+        event("geometry", "complete", backend.name)
         backends = {"segmentation": self.segmentation_backend, "material": self.material_backend}
         predictions = {}
         for name, stage in backends.items():
+            stage_name = "materials" if name == "material" else name
+            event(stage_name, "running", stage.name)
             progress(f"{name}: {stage.name}")
             try:
                 predictions[name] = stage.predict(image)
             finally:
                 if hasattr(stage, "release"):
                     stage.release()
-        segmentation = resolve_regions(image,predictions["segmentation"],prediction,
-                                       min_pixels=self.min_region_pixels,max_regions=self.max_regions)
+            if name == "segmentation":
+                segmentation = resolve_regions(image,predictions[name],prediction,
+                                               min_pixels=self.min_region_pixels,max_regions=self.max_regions)
+            else:
+                validate_analysis(image, AnalysisResult(prediction.depth,prediction.normal,segmentation.labels,
+                                                       predictions[name],prediction,segmentation))
+            event(stage_name, "complete", stage.name)
         analysis = AnalysisResult(prediction.depth,prediction.normal,segmentation.labels,predictions["material"],prediction,segmentation)
         validate_analysis(image, analysis)
+        event("lighting", "running", self.lighting_backend.name)
+        from .material_estimation_backend import MaterialEstimate
+        if isinstance(analysis.material, MaterialEstimate):
+            analysis = replace(analysis, lighting=self.lighting_backend.predict(make_lighting_input(image, analysis)))
+        event("lighting", "complete", analysis.lighting.fit["status"] if analysis.lighting else "Unavailable: legacy material has no estimated albedo")
+        event("export", "running", "Building grid mesh and writing ScenePackage")
         geometry = self.geometry_builder.build(image, analysis)
         progress(f"Geometry: {len(geometry.positions)} vertices, {len(geometry.indices)} triangles")
-        return self.scene_exporter.export(output, image, analysis, geometry,
-                                          {"geometry": backend.name, **{name: stage.name for name, stage in backends.items()}})
+        result = self.scene_exporter.export(output, image, analysis, geometry,
+                                           {"geometry": backend.name, **{name: stage.name for name, stage in backends.items()}})
+        event("export", "complete", "ScenePackage published")
+        return result

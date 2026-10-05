@@ -10,15 +10,28 @@ namespace isr {
 using namespace DirectX;
 namespace {
 constexpr auto Clamp=ImGuiSliderFlags_AlwaysClamp;
-void MaterialControls(Material& m){
+void MaterialControls(Scene& scene,size_t index,SceneEditState& edit){
+    auto& m=scene.materials.at(index);const auto& original=edit.OriginalMaterial(index);
     ImGui::TextWrapped("%s",m.name.c_str());
-    if(m.albedoSource!="authored") {
+    if(ImGui::TreeNode("Original Material")){
+        ImGui::TextWrapped("Parameters at scene load. For reconstructed scenes these are the estimated material, not the input photograph.");
+        ImGui::ColorButton("Original Base Color",ImVec4(original.baseColor.x,original.baseColor.y,original.baseColor.z,original.baseColor.w),ImGuiColorEditFlags_NoTooltip);
+        ImGui::SameLine();ImGui::Text("Base Color %.2f %.2f %.2f",original.baseColor.x,original.baseColor.y,original.baseColor.z);
+        ImGui::Text("Roughness %.3f",original.roughness);ImGui::Text("Metallic %.3f",original.metallic);
+        ImGui::Text("Normal Strength %.2f",original.normalScale);ImGui::TreePop();
+    }
+    if(m.albedoSource!="authored"&&ImGui::TreeNode("Material sources")) {
         ImGui::TextWrapped("Albedo source: %s",m.albedoSource.c_str());
         ImGui::TextWrapped("Normal source: %s",m.normalSource.c_str());
         ImGui::TextWrapped("Estimated views show raw maps. Final uses your material factors.");
+        ImGui::TreePop();
     }
-    ImGui::TextDisabled("Shared by nodes using this material");
-    bool changed=ImGui::ColorEdit4("Base Color",&m.baseColor.x,ImGuiColorEditFlags_Float);
+    const auto users=std::count_if(scene.entities.begin(),scene.entities.end(),[&](const Entity& e){return e.renderer&&e.renderer->materialIndex==index;});
+    if(users>1)ImGui::TextWrapped("Shared material: edits affect %zu primitives.",static_cast<size_t>(users));
+    ImGui::TextWrapped("Base Color tints the texture. Enable the override to replace roughness / metallic maps with constants.");
+    bool changed=ImGui::Checkbox("Override roughness / metallic maps",&m.overrideMetallicRoughness);
+    if(ImGui::IsItemHovered())ImGui::SetTooltip("Without override, sliders multiply texture values (1 preserves the map).\nA zero metallic texel stays zero. Override allows any constant metallic value.");
+    changed|=ImGui::ColorEdit4("Base Color",&m.baseColor.x,ImGuiColorEditFlags_Float);
     changed|=ImGui::SliderFloat("Metallic",&m.metallic,0,1,"%.3f");
     changed|=ImGui::SliderFloat("Roughness",&m.roughness,0,1,"%.3f");
     changed|=ImGui::SliderFloat("Normal Strength",&m.normalScale,0,2,"%.2f");
@@ -31,14 +44,15 @@ void MaterialControls(Material& m){
         ImGui::TreePop();
     }
     if(m.unlit)ImGui::TextWrapped("This material is unlit.");
+    if(ImGui::Button("Restore original material")){edit.RestoreMaterial(scene,index);changed=true;}
     if(changed)Log("Material edited: "+m.name+" metallic="+std::to_string(m.metallic)+" roughness="+std::to_string(m.roughness));
 }
 }
-void DrawEntityInspector(Scene& scene,size_t index){
+void DrawEntityInspector(Scene& scene,size_t index,SceneEditState& edit,RenderSettings& settings){
     if(index>=scene.entities.size()){ImGui::TextUnformatted("No mesh selected");return;}
     auto& entity=scene.entities[index];ImGui::TextWrapped("%s",entity.name.c_str());
     if(!entity.objectId.empty())ImGui::TextWrapped("Object ID: %s",entity.objectId.c_str());
-    if(entity.region&&ImGui::CollapsingHeader("Region",ImGuiTreeNodeFlags_DefaultOpen)) {
+    if(entity.region&&ImGui::CollapsingHeader("Region")) {
         const auto& r=*entity.region;ImGui::Text("Category: %s",r.category.c_str());ImGui::Text("Naming: %s",r.namingSource.c_str());
         ImGui::Text("Mask label: %u / %u pixels",r.labelId,r.pixelCount);
         ImGui::Text("Box: %u, %u / %u x %u",r.boundingBox[0],r.boundingBox[1],r.boundingBox[2],r.boundingBox[3]);
@@ -50,23 +64,31 @@ void DrawEntityInspector(Scene& scene,size_t index){
         ImGui::TextDisabled(trs?"Local space / rotation in degrees":"Local offset over imported matrix");
         if(!trs)ImGui::TextWrapped("The original matrix contains shear; it is preserved under this editable offset.");
         bool changed=ImGui::DragFloat3("Position",&edited.position.x,0.02f,-100000,100000,"%.3f",Clamp);
+        bool pivotChange=false;
         XMFLOAT3 degrees{XMConvertToDegrees(edited.rotation.x),XMConvertToDegrees(edited.rotation.y),XMConvertToDegrees(edited.rotation.z)};
         if(ImGui::DragFloat3("Rotation",&degrees.x,0.5f,-36000,36000,"%.1f",Clamp)){
-            edited.rotation={XMConvertToRadians(degrees.x),XMConvertToRadians(degrees.y),XMConvertToRadians(degrees.z)};changed=true;
+            edited.rotation={XMConvertToRadians(degrees.x),XMConvertToRadians(degrees.y),XMConvertToRadians(degrees.z)};changed=pivotChange=true;
         }
         if(ImGui::DragFloat3("Scale",&edited.scale.x,0.01f,-10000,10000,"%.3f",Clamp)){
             for(float* v:{&edited.scale.x,&edited.scale.y,&edited.scale.z})if(std::abs(*v)<0.001f)*v=std::copysign(0.001f,*v);
-            changed=true;
+            changed=pivotChange=true;
         }
-        if(changed){entity.transform=edited;Log("Transform edited: "+entity.name);}
+        ImGui::Checkbox("Rotate / scale around center",&edit.centerPivot);
+        if(changed){edit.EditTransform(scene,index,edited,pivotChange&&edit.centerPivot);Log("Transform edited: "+entity.name);}
+        if(ImGui::Button("Reset transform"))edit.RestoreTransform(scene,index);
     }
     const auto renderers=scene.RenderableSubtree(index);
     if(!renderers.empty()) {
         bool visible=std::any_of(renderers.begin(),renderers.end(),[&](size_t i){return scene.entities[i].renderer->visible;});
         if(ImGui::Checkbox("Visible",&visible))for(auto i:renderers)scene.entities[i].renderer->visible=visible;
         std::set<size_t> materials;for(auto i:renderers)materials.insert(scene.entities[i].renderer->materialIndex);
-        if(ImGui::CollapsingHeader("Material",ImGuiTreeNodeFlags_DefaultOpen))for(auto material:materials) {
-            ImGui::PushID(static_cast<int>(material));MaterialControls(scene.materials.at(material));ImGui::PopID();
+        if(ImGui::CollapsingHeader("Material",ImGuiTreeNodeFlags_DefaultOpen)){
+            if(settings.mode==RenderMode::OriginalImage||settings.mode==RenderMode::EstimatedAlbedo||settings.mode==RenderMode::EstimatedNormal||settings.mode==RenderMode::EstimatedRoughness){
+                ImGui::TextWrapped("This view shows raw source maps. Switch to Final to see material and lighting edits.");
+                if(ImGui::Button("Show Final"))settings.mode=RenderMode::Final;
+            }
+            for(auto material:materials) {
+            ImGui::PushID(static_cast<int>(material));MaterialControls(scene,material,edit);ImGui::PopID();}
         }
     }else ImGui::TextWrapped(entity.region?"This region has no valid mesh triangles. Its mask and identity are retained.":"This node contains no renderable primitives.");
 }
@@ -91,7 +113,7 @@ void DrawLightInspector(Light& light,RenderSettings& settings){
     if(light.type==LightType::Directional){
         auto direction=light.direction;
         if(ImGui::DragFloat3("Direction",&direction.x,0.01f,-1,1,"%.3f",Clamp)){
-            const auto v=XMLoadFloat3(&direction);if(XMVectorGetX(XMVector3LengthSq(v))>1e-8f)light.direction=direction;
+            const auto v=XMLoadFloat3(&direction);if(XMVectorGetX(XMVector3LengthSq(v))>1e-8f)XMStoreFloat3(&light.direction,XMVector3Normalize(v));
         }
         ImGui::TextWrapped("Direction in which the light travels. A zero vector is ignored.");
         if(ImGui::CollapsingHeader("Shadow",ImGuiTreeNodeFlags_DefaultOpen)){

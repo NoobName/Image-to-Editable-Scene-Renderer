@@ -4,7 +4,7 @@
 #include <wrl/client.h>
 #include <limits>
 namespace isr {
-std::shared_ptr<ImageData> DecodeImage(std::span<const uint8_t> bytes, const std::string& name) {
+std::shared_ptr<ImageData> DecodeImage(std::span<const uint8_t> bytes, const std::string& name,uint64_t maxPixels) {
     using Microsoft::WRL::ComPtr;
     struct Apartment {
         HRESULT result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -17,10 +17,13 @@ std::shared_ptr<ImageData> DecodeImage(std::span<const uint8_t> bytes, const std
     ComPtr<IWICStream> stream; Check(factory->CreateStream(&stream));
     Check(stream->InitializeFromMemory(const_cast<BYTE*>(bytes.data()),static_cast<DWORD>(bytes.size())));
     ComPtr<IWICBitmapDecoder> decoder; Check(factory->CreateDecoderFromStream(stream.Get(),nullptr,WICDecodeMetadataCacheOnLoad,&decoder));
+    UINT frames=0;Check(decoder->GetFrameCount(&frames));
+    if(frames!=1)throw std::runtime_error("Expected a single-frame image: "+name);
     ComPtr<IWICBitmapFrameDecode> frame; Check(decoder->GetFrame(0,&frame));
     auto image = std::make_shared<ImageData>(); image->name = name;
     Check(frame->GetSize(&image->width,&image->height));
     if (!image->width || !image->height || image->width > 16384 || image->height > 16384 ||
+        uint64_t(image->width)*image->height>maxPixels ||
         uint64_t(image->width)*image->height*4 > 512ull*1024*1024) throw std::runtime_error("Image dimensions exceed limits: " + name);
     ComPtr<IWICFormatConverter> converter; Check(factory->CreateFormatConverter(&converter));
     Check(converter->Initialize(frame.Get(),GUID_WICPixelFormat32bppRGBA,WICBitmapDitherTypeNone,nullptr,0,WICBitmapPaletteTypeCustom));

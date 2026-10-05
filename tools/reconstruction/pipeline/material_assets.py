@@ -10,7 +10,9 @@ def write_material_assets(root, image, material):
     """Return the ScenePackage override; photo and intrinsic reflectance always stay separate."""
     validate_material(image, material)
     textures = root / "textures"
-    Image.fromarray(image.rgb).save(textures / "original_image.png")
+    # Repackaging may have already copied the exact processed-image bytes from its source package.
+    if not (textures / "original_image.png").exists():
+        Image.fromarray(image.rgb).save(textures / "original_image.png")
     Image.fromarray(material.base_color).save(textures / "object_albedo.png")
     Image.fromarray(quantize(material.normal * .5 + .5)).save(textures / "object_normal.png")
     Image.fromarray(quantize(material.roughness)).save(textures / "object_roughness.png")

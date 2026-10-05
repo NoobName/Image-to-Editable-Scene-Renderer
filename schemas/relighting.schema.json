@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://imagescenerenderer.local/schemas/relighting-v1.schema.json",
+  "title": "Optional appearance anchor contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceImage": {
+      "$ref": "#/$defs/image"
+    },
+    "analysisImage": {
+      "$ref": "#/$defs/image"
+    },
+    "sourceKind": {
+      "enum": [
+        "canonical",
+        "legacy-processed"
+      ]
+    },
+    "originalFile": {
+      "$ref": "#/$defs/original"
+    },
+    "normalization": {
+      "$ref": "#/$defs/normalization"
+    },
+    "analysisMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pixelConvention": {
+          "const": "edge-origin-half-integer-centers"
+        },
+        "method": {
+          "const": "full-frame-resize"
+        },
+        "filter": {
+          "enum": [
+            "pillow-lanczos",
+            "legacy-unknown"
+          ]
+        },
+        "sourceToAnalysis": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": {
+            "type": "number",
+            "minimum": -1000000000000,
+            "maximum": 1000000000000
+          }
+        }
+      },
+      "required": [
+        "pixelConvention",
+        "method",
+        "filter",
+        "sourceToAnalysis"
+      ]
+    },
+    "sourceCamera": {
+      "$ref": "#/$defs/camera"
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fullResolutionAnchor": {
+          "type": "boolean"
+        },
+        "sourceCameraAvailable": {
+          "type": "boolean"
+        },
+        "requiresCalibration": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fullResolutionAnchor",
+        "sourceCameraAvailable",
+        "requiresCalibration"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "sourceId",
+    "sourceImage",
+    "analysisImage",
+    "sourceKind",
+    "normalization",
+    "analysisMapping",
+    "sourceCamera",
+    "capabilities"
+  ],
+  "$defs": {
+    "size": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 16384
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 1
+        },
+        "size": {
+          "$ref": "#/$defs/size"
+        },
+        "colorSpace": {
+          "const": "srgb"
+        },
+        "encoding": {
+          "const": "rgb8"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size",
+        "colorSpace",
+        "encoding"
+      ]
+    },
+    "original": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 1
+        },
+        "storedSize": {
+          "$ref": "#/$defs/size"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "storedSize"
+      ]
+    },
+    "normalization": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pipeline": {
+              "const": "pillow-exif-icc-white-rgb8-v1"
+            },
+            "exifOrientation": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8
+            },
+            "storedToCanonical": {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "items": {
+                "type": "number",
+                "minimum": -1000000000000,
+                "maximum": 1000000000000
+              }
+            },
+            "inputMode": {
+              "type": "string",
+              "minLength": 1
+            },
+            "iccPolicy": {
+              "enum": [
+                "embedded-to-srgb",
+                "assumed-srgb"
+              ]
+            },
+            "alphaPolicy": {
+              "const": "white-in-srgb"
+            },
+            "precision": {
+              "const": "rgb8-normalized-not-high-bit-depth"
+            }
+          },
+          "required": [
+            "pipeline",
+            "exifOrientation",
+            "storedToCanonical",
+            "inputMode",
+            "iccPolicy",
+            "alphaPolicy",
+            "precision"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pipeline": {
+              "const": "legacy-processed-unknown"
+            },
+            "precision": {
+              "const": "rgb8-only"
+            }
+          },
+          "required": [
+            "pipeline",
+            "precision"
+          ]
+        }
+      ]
+    },
+    "camera": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "enum": [
+                "reconstruction-estimate",
+                "synthetic"
+              ]
+            },
+            "coordinateSystem": {
+              "const": "left-handed-y-up"
+            },
+            "pixelConvention": {
+              "const": "edge-origin-half-integer-centers"
+            },
+            "intrinsicsNormalized": {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "items": {
+                "type": "number",
+                "minimum": -1000000000000,
+                "maximum": 1000000000000
+              }
+            },
+            "sourceIntrinsicsPixels": {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "items": {
+                "type": "number",
+                "minimum": -1000000000000,
+                "maximum": 1000000000000
+              }
+            },
+            "analysisIntrinsicsPixels": {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "items": {
+                "type": "number",
+                "minimum": -1000000000000,
+                "maximum": 1000000000000
+              }
+            },
+            "cameraToWorld": {
+              "type": "array",
+              "minItems": 16,
+              "maxItems": 16,
+              "items": {
+                "type": "number",
+                "minimum": -1000000000000,
+                "maximum": 1000000000000
+              }
+            },
+            "backend": {
+              "type": "string",
+              "minLength": 1
+            },
+            "scaleType": {
+              "enum": [
+                "metric",
+                "relative",
+                "synthetic"
+              ]
+            }
+          },
+          "required": [
+            "status",
+            "coordinateSystem",
+            "pixelConvention",
+            "intrinsicsNormalized",
+            "sourceIntrinsicsPixels",
+            "analysisIntrinsicsPixels",
+            "cameraToWorld",
+            "backend",
+            "scaleType"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "calibration-required"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "status",
+            "reason"
+          ]
+        }
+      ]
+    }
+  }
+}

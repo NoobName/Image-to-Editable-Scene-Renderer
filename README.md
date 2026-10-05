@@ -1,8 +1,100 @@
 # Image-to-Editable-Scene Renderer
 
-Windows / C++20 / DirectX 12 项目。已实现 Prompt 00–13：清屏、资源系统、相机与基础 Scene、glTF 2.0 导入、PBR、方向光阴影、HDR 环境 IBL、三栏 Look Development 工具、统一参数驱动的后处理管线、ScenePackage 磁盘交换格式，以及独立 Python Reconstruction Pipeline（MoGe-2 几何、逐像素 2.5D 网格、SAM 2 分割、Marigold intrinsic 材质估计与独立物体编辑）。
+Windows / C++20 / DirectX 12 项目。已实现 Prompt 00–19：清屏、资源系统、相机与基础 Scene、glTF 2.0 导入、PBR、方向光阴影、HDR 环境 IBL、三栏 Look Development 工具、统一参数驱动的后处理管线、ScenePackage 磁盘交换格式，以及独立 Python Reconstruction Pipeline（MoGe-2 几何、逐像素 2.5D 网格、SAM 2 分割、Marigold intrinsic 材质估计、独立物体编辑与原尺寸 Appearance Anchor）。可从 File 菜单重建图像并自动加载结果，在 Viewport 选取物体、拖动太阳方向并实时编辑场景；可切换到独立二维原图、数值分析图和原始照明拟合诊断。
 
 Renderer 与 AI Pipeline 解耦。C++ 不依赖 Python；Python 代码仅位于 `tools/reconstruction/`，通过 JSON 和磁盘文件交换数据。模型只在 Python Adapter 内运行，网格构建与离线重建不依赖 PyTorch。
+
+## 阶段 19：原始照明拟合基线
+
+Image Mode 中点击 **Fit saved observations**，复用已保存的 geometry/material/segmentation，后台运行 `robust-directional-ambient` 并导入新包。也可离线执行：
+
+```powershell
+conda run -n image-scene-renderer python tools/reconstruction/estimate_lighting.py generated/scene18 --output generated/my-lighting
+.\build\Debug\ImageSceneRenderer.exe --package generated/my-lighting --work-mode image --image-view old-shading
+```
+
+新增 Shading Proxy、Old Shading、Residual、Fit Mask 和 source/target 参数检查。Source 校准必须显式 Apply；旧拟合缓存随后失效，Export calibrated source 可离线重建证据。Target 只修改独立参数，暂不生成新 RGB。使用固定曝光和 albedo 尺度，强度为相对单位；不能将默认导出灯或 neutral albedo 称为准确估计。真实多光源/高反射照片可能明确返回退化结果。进度协议 v2 增加 Lighting 行，兼容旧四阶段协议。详见 [照明契约与操作](tools/reconstruction/LightingBaseline.md)。
+
+## 阶段 18：AnalysisMaps 到图像域 GPU
+
+Image Relighting 的 `Image View` 下拉菜单增加 Depth、Geometry Normal、Position、Validity、Region、Estimated Albedo、Roughness、Metallic 和三种来源 confidence。Inspector 显示单位、坐标、来源和真实可用性；不计算新照明，Source 与3D Final保留。几何 normal 与平坦 tangent normal 分开显示。
+
+```powershell
+conda activate image-scene-renderer
+# 从已有真实 scene13 数值升级到新目录，不重新推理；本机已有 generated/scene18 可直接打开
+python tools/reconstruction/export_analysis.py generated/scene13 --output generated/scene18-reader
+.\build\Debug\ImageSceneRenderer.exe --package generated/scene18-reader --work-mode image --image-view geometry-normal
+```
+
+独立严格 `analysis/analysis.json` 与受限 DX10 DDS 保留 float32 / uint32 数值；EXR/NPZ继续保留，PBR纹理槽不增加分析图。`SourceObservation`、后台GPU准备和fence退休复用阶段17。缺少分析图显示 unavailable，损坏分析包拒绝发布。新重建和重新导出自动写入该契约。详见 [AnalysisMaps.md](tools/reconstruction/AnalysisMaps.md)，验证入口为 `tools/Validate-Analysis.ps1`、`tools/reconstruction/verify_analysis.py` 和 `AnalysisGpuTests`。
+
+## 阶段 17：3D Scene / Image Relighting 工作模式（历史基础）
+
+Viewport 顶部 `Mode` 切换工作模式。`3D Scene` 保留原有编辑与 Final；阶段17的 `Image Relighting` 提供规范化原图 `Original View`、`Pixel Grid` 和来源信息，不计算新照明。阶段18将原图/网格入口合入 Image View 下拉菜单并增加分析图。原图自动等比例 Fit，不受 mesh、可见性、材质、自由相机、曝光或 Look 影响。Pixel Grid 每64个源像素划线，可查看鼠标对应源像素。
+
+```powershell
+# 先按下方阶段16流程生成带 anchor 的包，或使用本机已验证的 generated/prompt16/analysis512
+.\build\Debug\ImageSceneRenderer.exe --package "generated/my-anchor16" --work-mode image
+.\build\Debug\ImageSceneRenderer.exe --package "generated/my-anchor16" --work-mode image --image-view grid
+.\build\Debug\ImageSceneRenderer.exe --package "assets/ScenePackage" --work-mode scene
+```
+
+旧 `--render-mode original` 仍是3D中的 **Original Image on Geometry**，RenderMode数值不变。没有已验证anchor的旧包继续显示3D；升级的legacy processed anchor可查看，但明确标为低分辨率。原图采用一次sRGB decode/encode，绕过默认ACES/Bloom/Look。背景加载成功时Scene与只读SourceObservation一起发布；失败或取消保留上一份文档，并沿用fence退休旧GPU资源。
+
+验证入口为 `tools/Validate-ImageMode.ps1` 和 `python tools/reconstruction/verify_image_mode.py`，使用阶段16 fixtures及修改前基线；详情、CLI与复现条件见 [ImageMode.md](tools/reconstruction/ImageMode.md)。本机实际19组窗口与像素验证通过；原尺寸1500×1000在Debug/Release/WARP下最大误差0 LSB（要求≤1），ImGui原尺寸512×341也为0。当前只支持Auto Fit、单mip线性过滤，无pan/zoom、新照明或HDR10输出。
+
+## 阶段 16：保留原尺寸 Appearance Anchor
+
+新包在独立的 `relighting/relighting.json` 中记录原文件、定向/色彩规范化后的原尺寸图、分析图、SHA-256、像素坐标映射及来源相机。`scene.json` 仍是 v1；`textures/original_image.png` 仍是分析尺寸的处理后图像，高分辨率图单独保存在 `textures/source_anchor.png`。模型和网格继续使用 `--max-size`，Renderer 的 Final 和 Original Image 模式保持原有含义。
+
+```powershell
+conda activate image-scene-renderer
+python tools/reconstruction/reconstruct.py "input.jpg" --output generated/my-anchor16 --max-size 512 --geometry-backend dummy --segmentation-backend dummy --material-backend neutral
+python tools/reconstruction/inspect_anchor.py generated/my-anchor16
+.\build\Debug\ImageSceneRenderer.exe --package generated/my-anchor16
+# 可选：创建含中文路径、细字、ICC、EXIF、旧包及损坏副本的学习输入；目录必须为新目录
+python tools/reconstruction/anchor_examples.py generated/my-anchor-examples
+```
+
+查看输出包的 `debug/source-analysis.png` 和 `.json`，比较源图/分析图及有效映射。限制为单帧 JPEG/PNG、128 MiB、40 MP、单边 16384 像素，并在规范化前检查保守工作内存预算；超限明确失败，不偷偷缩小 anchor。RGB8 不保留高位深数值，原始文件字节另存以保留来源。
+
+remesh / segment / estimate_material 保留已有 anchor 和 sidecar 字节；旧包升级必须输出新目录，只能标为 legacy processed anchor，来源相机不足时要求校准。扩展缺失可继续加载 3D，存在但损坏会明确拒绝导入，保留当前场景。此阶段只增加 CPU 元数据，没有重打光、独立原图视图或新 GPU 纹理。字段、公式与公开验证命令见 [AppearanceAnchor.md](tools/reconstruction/AppearanceAnchor.md)。详细中文教材、实验和 Q&A 仍只在本地 `docs/`。
+
+## 阶段 15：编辑重建场景
+
+```powershell
+# 本机已有的具名分割 + 真实材质示例，无须重新运行模型
+.\build\Debug\ImageSceneRenderer.exe --package "generated/scene13" --render-mode final
+```
+
+1. 左键点击 Viewport 中的物体，或在左侧 Objects 中选择 Chair 等节点。黄色包围框表示当前选择；点到子网格会自动选中对应的重建对象。
+2. 右侧 Object → Transform 可拖动 Position / Rotation / Scale，双击数值可直接输入。旋转单位为度；默认围绕当前物体中心旋转和缩放，避免相机空间网格绕相机原点公转。Reset transform 恢复载入时变换。
+3. Material 中实时修改 Base Color、Roughness、Metallic、Normal Strength。展开 **Original Material** 查看载入时的参数，**Restore original material** 恢复它们；这里的 Original 指载入的估计材质，不是原始照片。
+4. 勾选 **Override roughness / metallic maps** 后，粗糙度和金属度滑块直接指定常量。未勾选时按 glTF 规则乘贴图值；黑色金属度贴图乘任何因子仍是 0。Base Color 始终作为贴图颜色乘数。
+5. 在 Viewport 右上角 **SUN / drag LMB** 内按住左键拖动，实时改变方向光。控件会选中该灯，右侧可继续修改 Direction、Color、Intensity；拖动控件不会带动相机。多方向光时控制当前选中的方向光，否则控制第一盏。
+6. 选择左侧 Environment 调整 HDRI / Intensity / Rotation；右侧 Look 调整 Exposure。光照效果请在 **Final** 中观察。
+
+Estimated 视图保留原始估计贴图，不显示编辑因子或常量覆盖；Albedo / Roughness / Metallic / Normal 显示当前材质属性，但绕过光照和曝光。当前重建 Normal 是平坦 fallback，调 Normal Strength 不会凭空产生细节；可用 MaterialLab 的真实法线贴图验证。
+
+每个重建对象拥有独立材质，贴图仍共享。普通 glTF 的共享材质保持共享，Inspector 会提示影响的 primitive 数量。Viewport 拾取使用几何相交，尚未按 MASK/BLEND 纹理透明度过滤；必要时在左侧层级选择。
+
+编辑保存在本次运行的内存中，尚无保存编辑/Undo 功能。移动物体暴露的背面与遮挡空洞不会补全。学习文档及 Q&A 只保存在本地 docs/。
+
+回归入口：`tools/Validate-Editing.ps1`；随后运行 `python tools/reconstruction/check_editing_captures.py generated/scene13` 比较 GPU 输出。场景数学和真实 ImGui 鼠标事件测试为 `SceneEditingTests`、`ViewportToolsTests`。
+
+## 阶段 14：在编辑器内重建图像
+
+```powershell
+.\build\Debug\ImageSceneRenderer.exe
+```
+
+选择 **File → Reconstruct Image...**，选中 JPG / PNG 后自动开始。默认使用本机已配置的 MoGe + SAM 2 + Marigold，512 像素、离线缓存模式。处理时可以继续查看当前场景；进度窗口显示 Geometry、Segmentation、Materials、Scene Export。完成后经过 Loading，自动载入新场景并进入 Ready。
+
+输出位于 `generated/<图片名>-<唯一后缀>/`，日志位于 `generated/.reconstruction-jobs/<job-id>/python.log`，具体路径显示在进度窗口中。Ready 后可以关闭进度窗口，继续编辑对象、材质和灯光。
+
+**File → Reconstruction settings...** 可以选择 Python 解释器、各后端和图像尺寸。本机会自动发现 `D:\miniconda\envs\image-scene-renderer\python.exe`，无需先激活 Conda；解释器路径保存在被 Git 忽略的 generated/ 中。选择 `dummy / dummy / neutral` 可以快速测试连接。安装模型仍使用已有 setup 脚本。
+
+重建、CPU 场景解析、GPU 资源准备均在后台进行。失败保留当前场景，提供 Retry / Settings 和错误日志；Cancel 会停止 Python 进程树。没有 Python runtime 链接、RPC 或 Agent。完整操作、进度协议和验证命令见 [DesktopIntegration.md](tools/reconstruction/DesktopIntegration.md)。
 
 ## 阶段 13：Intrinsic 材质重建
 
@@ -379,4 +471,4 @@ Validate-Lighting 在关闭天空和直接光时分别比较金属球、漫反�
 
 `src/Assets/` 只负责 CPU 解析；`src/Scene/` 保存可编辑数据；`src/Renderer/` 管理 DX12 资源和 Pass；`src/UI/` 的 LookDevelopmentUI 管理后端，Layout / SceneHierarchy / InspectorPanels / EnvironmentPanel 管理各面板，ViewportInput 管理输入归属。GpuScene 复用主 Pass 与 Shadow Pass 的网格/材质；EnvironmentManager 管理 HDR 选择与缓存，EnvironmentBaker 执行 GPU 卷积。Shader 按功能拆分，ColorManagement.hlsli 供 ToneMap 和 GPU 数值测试共用。
 
-`docs/` 内有各阶段中文入门教程、面试 Q&A、排错与实测记录。**整个 `/docs/` 已被 `.gitignore` 排除，不上传 GitHub。** `build/`、`generated/` 也被忽略。当前尚未实现隐藏几何补全、真实材质分解、RPC、网络服务或参数优化。
+`docs/` 内有各阶段中文入门教程、面试 Q&A、排错与实测记录。**整个 `/docs/` 已被 `.gitignore` 排除，不上传 GitHub。** `build/`、`generated/` 也被忽略。当前尚未实现隐藏几何补全、编辑保存、RPC、网络服务或参数优化。

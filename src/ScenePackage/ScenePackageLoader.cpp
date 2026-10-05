@@ -12,6 +12,8 @@ DirectX::XMFLOAT3 Vec3(const package::Json& v) {return {v[0].get<float>(),v[1].g
 ScenePackage ScenePackageLoader::Load(const std::filesystem::path& path) const {
     const auto manifest=package::ReadManifest(path);const auto& data=manifest.data;
     ScenePackage result;result.root=manifest.root;auto& scene=result.scene;
+    result.appearance=package::ReadAppearanceAnchor(result.root);
+    Log(result.appearance?"AppearanceAnchor: validated immutable CPU image and metadata":"AppearanceAnchor: absent; loading legacy 3D scene");
     const auto& c=data["camera"];
     scene.camera.LookAt(Vec3(c["position"]),Vec3(c["target"]));
     scene.camera.SetPerspective(c["fovYDegrees"].get<float>()*DirectX::XM_PI/180,c["aspect"],c["near"],c["far"]);
@@ -84,6 +86,24 @@ ScenePackage ScenePackageLoader::Load(const std::filesystem::path& path) const {
         const bool mask=it.key()=="segmentation";
         result.auxiliary[it.key()]=package::AssetPath(result.root,it.value(),mask?"masks":"debug",{mask?".png":".exr"});
     }
+    auto observation=std::make_shared<SourceObservation>();observation->packageRoot=result.root;
+    observation->anchor=result.appearance;observation->analysisArtifacts=result.auxiliary;
+    const auto report=result.root/"debug/reconstruction.json";
+    if(std::filesystem::exists(report)){
+        // This diagnostic report is not part of the v1/anchor contract. A broken old report
+        // must not turn an otherwise valid legacy scene into an unloadable package.
+        try{
+            auto metadata=package::ReadJson(package::AssetPath(result.root,"debug/reconstruction.json","debug",{".json"}));
+            if(!metadata.is_object())throw std::runtime_error("expected a JSON object");
+            observation->analysisMetadata=std::move(metadata);
+        }catch(const std::exception& error){
+            observation->analysisMetadataDiagnostic=std::string("Optional debug/reconstruction.json ignored: ")+error.what();
+            Log(observation->analysisMetadataDiagnostic);
+        }
+    }
+    observation->analysisMaps=LoadAnalysisMaps(result.root,result.appearance);
+    observation->lighting=LoadLightingData(result.root,result.appearance);
+    result.observation=std::move(observation);
     scene.UpdateWorldMatrices();
     Log("Loaded ScenePackage v1: objects="+std::to_string(data["objects"].size())+" lights="+std::to_string(scene.lights.size())+" auxiliary="+std::to_string(result.auxiliary.size()));
     return result; // All validation and CPU reconstruction complete before publishing the scene.

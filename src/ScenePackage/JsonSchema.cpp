@@ -21,12 +21,13 @@ void CheckProfile(const Json& rule) {
         if (it.key()=="$ref" && !it.value().get<std::string>().starts_with("#/$defs/")) Fail("schema","only local $defs references are supported");
     }
 }
-const Json& Resolve(const Json& rule) {
-    return rule.contains("$ref") ? Schema().at(Json::json_pointer(rule.at("$ref").get<std::string>().substr(1))) : rule;
+const Json& Resolve(const Json& rule,const Json& schema=Schema()) {
+    return rule.contains("$ref") ? schema.at(Json::json_pointer(rule.at("$ref").get<std::string>().substr(1))) : rule;
 }
 }
+Json ParseSchema(std::string_view text){auto j=Json::parse(text);CheckProfile(j);return j;}
 const Json& Schema() {
-    static const Json schema=[] { auto j=Json::parse(SchemaText); CheckProfile(j); return j; }();
+    static const Json schema=ParseSchema(SchemaText);
     return schema;
 }
 Json ReadJson(const std::filesystem::path& path) {
@@ -45,11 +46,11 @@ Json ReadJson(const std::filesystem::path& path) {
         return true;
     });
 }
-void Validate(const Json& value,const Json& input,const std::string& at) {
-    const auto& rule=Resolve(input);
+void Validate(const Json& value,const Json& input,const std::string& at,const Json& schema) {
+    const auto& rule=Resolve(input,schema);
     if(rule.contains("oneOf")) {
         unsigned matches=0;
-        for(const auto& branch:rule["oneOf"]) { try { Validate(value,branch,at); ++matches; } catch(const std::runtime_error&) {} }
+        for(const auto& branch:rule["oneOf"]) { try { Validate(value,branch,at,schema); ++matches; } catch(const std::runtime_error&) {} }
         if(matches!=1) Fail(at,"must match exactly one supported variant");
     }
     if(rule.contains("const") && value!=rule["const"]) Fail(at,"expected " + rule["const"].dump());
@@ -75,13 +76,13 @@ void Validate(const Json& value,const Json& input,const std::string& at) {
     if(value.is_array()) {
         if(rule.contains("minItems")&&value.size()<rule["minItems"].get<size_t>()) Fail(at,"too few items");
         if(rule.contains("maxItems")&&value.size()>rule["maxItems"].get<size_t>()) Fail(at,"too many items");
-        if(rule.contains("items")) for(size_t i=0;i<value.size();++i) Validate(value[i],rule["items"],at+"["+std::to_string(i)+"]");
+        if(rule.contains("items")) for(size_t i=0;i<value.size();++i) Validate(value[i],rule["items"],at+"["+std::to_string(i)+"]",schema);
     }
     if(value.is_object()) {
         for(const auto& key:rule.value("required",Json::array())) if(!value.contains(key.get<std::string>())) Fail(at,"missing " + key.get<std::string>());
         const auto properties=rule.value("properties",Json::object());
         for(auto it=value.begin();it!=value.end();++it) {
-            if(properties.contains(it.key())) Validate(it.value(),properties[it.key()],at+"."+it.key());
+            if(properties.contains(it.key())) Validate(it.value(),properties[it.key()],at+"."+it.key(),schema);
             else if(!rule.value("additionalProperties",true)) Fail(at,"unknown field " + it.key());
         }
     }

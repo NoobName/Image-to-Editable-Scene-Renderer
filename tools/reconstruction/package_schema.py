@@ -72,8 +72,8 @@ SCHEMA = read_json(SCHEMA_PATH)
 _check_profile(SCHEMA)
 
 
-def _resolve(rule):
-    return SCHEMA["$defs"][rule["$ref"].split("/")[-1]] if "$ref" in rule else rule
+def _resolve(rule, schema=SCHEMA):
+    return schema["$defs"][rule["$ref"].split("/")[-1]] if "$ref" in rule else rule
 
 
 def _equal(a, b):
@@ -81,15 +81,15 @@ def _equal(a, b):
     return a == b and (isinstance(a, bool) == isinstance(b, bool))
 
 
-def validate(value, rule=SCHEMA, at="$"):
-    rule = _resolve(rule)
+def validate(value, rule=SCHEMA, at="$", schema=SCHEMA):
+    rule = _resolve(rule, schema)
     def fail(reason):
         raise ValueError(f"ScenePackage {at}: {reason}")
     if "oneOf" in rule:
         matches = 0
         for branch in rule["oneOf"]:
             try:
-                validate(value, branch, at)
+                validate(value, branch, at, schema)
                 matches += 1
             except ValueError:
                 pass
@@ -117,14 +117,14 @@ def validate(value, rule=SCHEMA, at="$"):
             fail("wrong number of items")
         if "items" in rule:
             for i, child in enumerate(value):
-                validate(child, rule["items"], f"{at}[{i}]")
+                validate(child, rule["items"], f"{at}[{i}]", schema)
     if isinstance(value, dict):
         for key in rule.get("required", []):
             if key not in value:
                 fail(f"missing {key}")
         for key, child in value.items():
             if key in rule.get("properties", {}):
-                validate(child, rule["properties"][key], f"{at}.{key}")
+                validate(child, rule["properties"][key], f"{at}.{key}", schema)
             elif rule.get("additionalProperties") is False:
                 fail(f"unknown field {key}")
 

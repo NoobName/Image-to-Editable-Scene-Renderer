@@ -1,5 +1,13 @@
 # Reconstruction Pipeline
 
+Stage 19 adds model-independent original-lighting fitting, a strict optional lighting sidecar, source/target calibration state and four independent GPU evidence views. Use `estimate_lighting.py` for saved-package reuse or `reconstruct.py --lighting-backend robust-directional-ambient`; no new model is installed. See [LightingBaseline.md](LightingBaseline.md). Neutral/degenerate inputs are explicitly low-confidence; target parameters do not yet produce relighted RGB.
+
+Stage 18 exports numeric AnalysisMaps through a strict optional sidecar and bounded float32/uint32 DX10 DDS. The renderer's independent Image View can inspect geometry, validity, labels, material estimates and provenance confidence; PBR slots and source pixels are unchanged. See [AnalysisMaps.md](AnalysisMaps.md) for conventions, saved-package upgrade, missing-data behavior and readback verification. This does not perform relighting or additional model inference.
+
+Stage 16 preserves the original file and a full-size canonical RGB8 sRGB source anchor, independently of model/mesh analysis resolution. The optional strict sidecar, coordinate conventions, legacy behavior and diagnostic commands are documented in [AppearanceAnchor.md](AppearanceAnchor.md). `scene.json` v1 and the processed-image meaning of `textures/original_image.png` remain unchanged. No relighting model or shader is added.
+
+Stage 14 adds **File > Reconstruct Image...** in the DX12 editor, background Python execution, stage progress and automatic scene import. See [DesktopIntegration.md](DesktopIntegration.md). The editor defaults to the installed real models; standalone CLI defaults remain lightweight.
+
 Stage 13 adds [intrinsic PBR material estimation](Material.md) through `MaterialEstimationBackend`. Use `--material-backend marigold` for real albedo/roughness/metallic estimation. New CLI/API calls default to a neutral material, with the original photograph stored separately for **Original Image** view. The older photo-placeholder behavior described below remains only for legacy packages/tests. The no-model path still needs no PyTorch.
 
 Stage 12 adds replaceable Dummy / SAM 2 segmentation, named point/box prompts, region statistics and independently editable object meshes. See [Segmentation.md](Segmentation.md). The default CLI still selects Dummy segmentation; opt in with `--segmentation-backend sam2`. The sections below document the original Dummy path where indicated.
@@ -25,7 +33,7 @@ Use a separate local virtual environment (Python 3.12+, tested with 3.13.2 x64):
 .\tools\reconstruction\setup.ps1 -Python "D:\miniconda\python.exe"
 ```
 
-`setup.ps1` creates `.venv/` here and installs only the pinned wheels in `requirements.txt`: NumPy, Pillow, OpenEXR. It does not install into global Python or download model weights. `.venv/` is ignored by Git. The C++ build and Renderer remain independent of this environment; the original `scene_package.py` file API still uses the standard library alone.
+`setup.ps1` creates `.venv/` here and installs only the pinned wheels in `requirements.txt`: NumPy, Pillow, OpenEXR. It does not install into global Python or download model weights. `.venv/` is ignored by Git. The C++ build and Renderer remain independent of this environment. Legacy v1 validation uses the standard library alone; when the optional Appearance Anchor sidecar is present, Python also uses Pillow to validate the actual image payloads. C++ uses WIC and Windows CNG without Python.
 
 ## Run
 

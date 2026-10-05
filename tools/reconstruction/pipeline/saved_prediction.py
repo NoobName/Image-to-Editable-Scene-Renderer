@@ -11,6 +11,11 @@ from .scene_exporter import SceneExporter, check_destination
 
 def load_saved_geometry(package: Path, geometry_source="point-map"):
     package = Path(package).resolve(strict=True)
+    try:
+        from ..scene_package import load_package
+    except ImportError:
+        from scene_package import load_package
+    load_package(package)  # Validate optional provenance before deriving another package from it.
     if geometry_source not in ("point-map", "depth"):
         raise ValueError("Geometry source must be point-map or depth")
     report = json.loads((package/"debug/reconstruction.json").read_text(encoding="utf-8"))
@@ -28,7 +33,8 @@ def load_saved_geometry(package: Path, geometry_source="point-map"):
     if source["processed_size"] != [image.width,image.height]:
         raise ValueError("Saved image dimensions do not match the prediction report")
     image = replace(image, path=Path(source["name"]), source_size=tuple(source["source_size"]),
-                    source_sha256=source["sha256"], color_profile_applied=source["icc_applied"])
+                    source_sha256=source["sha256"], color_profile_applied=source["icc_applied"],
+                    canonical_rgb=None, original_bytes=None, normalization={}, anchor_package=package)
     return image,prediction,report
 
 

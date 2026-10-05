@@ -1,4 +1,6 @@
-"""ScenePackage v1 file interchange API and CLI. Python 3.10+, standard library only.
+"""ScenePackage v1 file interchange API and CLI. Python 3.10+.
+
+Legacy v1 validation is standard-library-only; optional appearance image checks use Pillow.
 
 Public API: create_package, copy_asset, write_package, load_package, add_auxiliary.
 All data exchange happens through files. Renderer is an independent consumer.
@@ -139,6 +141,23 @@ def validate_files(root, data):
     for key, value in data["auxiliary"].items():
         asset_path(root, value, "masks" if key == "segmentation" else "debug",
                    (".png",) if key == "segmentation" else (".exr",))
+    try:
+        from .appearance_contract import load_extension
+    except ImportError:
+        from appearance_contract import load_extension
+    appearance = load_extension(root)  # Optional, but fail closed when present and damaged.
+    if (root / "analysis/analysis.json").exists():
+        try:
+            from .analysis_contract import load_analysis
+        except ImportError:
+            from analysis_contract import load_analysis
+        load_analysis(root, appearance)
+    if (root / "lighting/lighting.json").exists():
+        try:
+            from .lighting_contract import load_lighting
+        except ImportError:
+            from lighting_contract import load_lighting
+        load_lighting(root, appearance)
 
 
 def load_package(package):
@@ -159,7 +178,7 @@ def copy_asset(root, source, relative):
     """Copy bytes without transcoding. Refuses to overwrite different existing bytes."""
     root = create_package(root)
     folder = relative.split("/")[0]
-    if folder not in (*FOLDERS,"objects"):
+    if folder not in (*FOLDERS,"objects","relighting"):
         raise ValueError("Asset must be in a standard package directory")
     target = asset_path(root, relative, folder, (Path(relative).suffix.lower(),), must_exist=False)
     source = Path(source).resolve(strict=True)
@@ -190,21 +209,28 @@ def write_package(root, data):
     root = create_package(root)
     result = normalize(data)
     validate_files(root, result)
-    encoded = json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    write_json_atomic(root / "scene.json", result)
+    return result
+
+
+def write_json_atomic(path, data):
+    """Publish a UTF-8 JSON snapshot beside its temporary file, on the same filesystem."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    encoded = json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     if len(encoded.encode("utf-8")) > 4*1024*1024:
         raise ValueError("Manifest exceeds 4 MiB")
     temp = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=root, suffix=".tmp", delete=False) as stream:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False) as stream:
             temp = Path(stream.name)
             stream.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temp, root / "scene.json")
+        os.replace(temp, path)
     finally:
         if temp is not None:
             temp.unlink(missing_ok=True)
-    return result
 
 
 def main():

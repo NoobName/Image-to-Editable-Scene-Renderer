@@ -5,7 +5,7 @@ namespace isr {
 enum class RenderMode { Final, Albedo, Normal, Roughness, Metallic, Depth, Wireframe, OriginalImage, EstimatedAlbedo, EstimatedNormal, EstimatedRoughness };
 inline constexpr int RenderModeCount=11;
 inline constexpr const char* RenderModeNames[]={"Final","Albedo","Normal","Roughness","Metallic","Depth","Wireframe",
-    "Original Image","Estimated Albedo","Estimated Normal","Estimated Roughness"};
+    "Original Image on Geometry","Estimated Albedo","Estimated Normal","Estimated Roughness"};
 static_assert(sizeof(RenderModeNames)/sizeof(RenderModeNames[0])==RenderModeCount);
 struct RenderSettings {
     RenderMode mode=RenderMode::Final;

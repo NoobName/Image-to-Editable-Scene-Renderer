@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cmath>
 namespace isr {
-void CameraController::Update(Camera& camera, const InputState& input, float dt) {
-    if (!input.active) return;
+void CameraController::Update(Camera& camera, const InputState& input, float dt,WorkMode mode) {
+    if (!input.active||mode!=WorkMode::Scene3D) return;
     if (input.keys['R']) { camera = Camera{}; return; }
     // Window only accumulates motion while RMB is held. Consume that motion
     // even when button-up arrived in the same pump as the final mouse move.

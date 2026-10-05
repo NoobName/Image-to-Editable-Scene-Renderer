@@ -21,7 +21,7 @@ def write_auxiliary(root: Path, analysis: AnalysisResult, geometry: GeometryResu
     confidence = prediction.confidence if prediction is not None else valid.astype(np.float32)
     write_exr(debug / "depth.exr", analysis.depth, "Z", "camera-space forward Z; scale convention in reconstruction.json; zero invalid")
     write_exr(debug / "normal.exr", analysis.normal, "RGB", "camera-space signed XYZ unit normals; not color")
-    write_exr(debug / "pointmap.exr", geometry.pointmap, "RGB", "world-space XYZ positions in meters; not color")
+    write_exr(debug / "pointmap.exr", geometry.pointmap, "RGB", "LH reconstruction camera/world XYZ; scale convention in reconstruction.json; zero invalid; not color")
     labels = analysis.labels
     packed = np.stack((labels & 255, (labels >> 8) & 255, (labels >> 16) & 255), axis=-1).astype(np.uint8)
     Image.fromarray(packed).save(root / "masks/segmentation.png")

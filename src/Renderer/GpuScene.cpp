@@ -29,7 +29,7 @@ ObjectConstants GpuScene::Constants(const Entity& entity,const Material& materia
     c.baseColor=material.baseColor;c.emissiveCutoff={material.emissive.x,material.emissive.y,material.emissive.z,material.alphaCutoff};
     c.factors={material.metallic,material.roughness,material.ao,material.normalScale};c.flags={float(material.alphaMode),float(material.doubleSided),mirrored?-1.0f:1.0f,float(material.unlit)};
     c.extras={material.occlusionStrength,material.textures[size_t(TextureRole::Normal)].texture?1.0f:0.0f,
-        material.textures[size_t(TextureRole::OriginalImage)].texture?1.0f:0.0f,0};
+        material.textures[size_t(TextureRole::OriginalImage)].texture?1.0f:0.0f,material.overrideMetallicRoughness?1.0f:0.0f};
     for(size_t i=0;i<MaterialTextureCount;++i){const auto& t=material.textures[i];c.uv[i]={{t.offset.x,t.offset.y,t.scale.x,t.scale.y},{t.rotation,float(t.texCoord),0,0}};}
     return c;
 }
