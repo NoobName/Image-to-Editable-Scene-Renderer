@@ -1,0 +1,5 @@
+# Optional inference-only dependencies. Core requirements remain usable without torch.
+-r requirements.txt
+scipy==1.18.1
+opencv-python-headless==5.0.0.93
+huggingface-hub==0.36.0

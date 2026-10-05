@@ -1,0 +1,156 @@
+cmake_minimum_required(VERSION 3.25)
+project(ImageSceneRenderer VERSION 0.8.0 LANGUAGES C CXX)
+if(NOT WIN32)
+    message(FATAL_ERROR "ImageSceneRenderer requires Windows and DirectX 12.")
+endif()
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "Use the x64 C++ toolchain; the packaged DXC runtime is x64.")
+endif()
+add_executable(ImageSceneRenderer WIN32
+    src/App/Main.cpp src/App/Application.cpp src/App/Window.cpp
+    src/Core/Log.cpp src/Renderer/DeviceContext.cpp src/Renderer/Renderer.cpp
+    src/Renderer/DescriptorAllocator.cpp src/Renderer/UploadBuffer.cpp src/Renderer/GpuBuffer.cpp
+    src/Renderer/Texture.cpp src/Renderer/RootSignature.cpp src/Renderer/PipelineState.cpp
+    src/Renderer/ShaderCompiler.cpp src/Renderer/TrianglePass.cpp src/Renderer/ScenePass.cpp
+    src/App/CameraController.cpp src/Renderer/FrameCapture.cpp src/Renderer/TextureManager.cpp)
+target_sources(ImageSceneRenderer PRIVATE src/UI/LookDevelopmentUI.cpp src/UI/ImGuiInput.cpp src/UI/LookPanel.cpp src/App/LookOptions.cpp
+    src/UI/LookDevelopmentLayout.cpp src/UI/SceneHierarchy.cpp src/UI/InspectorPanels.cpp)
+target_sources(ImageSceneRenderer PRIVATE src/Renderer/GpuScene.cpp src/Renderer/ShadowPass.cpp
+    src/Renderer/EnvironmentBaker.cpp src/Renderer/EnvironmentManager.cpp src/Renderer/SkyPass.cpp
+    src/UI/EnvironmentPanel.cpp src/App/LightingOptions.cpp)
+add_library(ImGui STATIC external/imgui/imgui.cpp external/imgui/imgui_draw.cpp
+    external/imgui/imgui_tables.cpp external/imgui/imgui_widgets.cpp
+    external/imgui/backends/imgui_impl_win32.cpp external/imgui/backends/imgui_impl_dx12.cpp)
+target_include_directories(ImGui SYSTEM PUBLIC external/imgui)
+target_compile_definitions(ImGui PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(ImGui PRIVATE d3d12 d3dcompiler dxgi dwmapi)
+target_link_libraries(ImageSceneRenderer PRIVATE ImGui)
+add_library(PostProcessing STATIC src/Renderer/FullscreenPass.cpp src/Renderer/BloomPass.cpp
+    src/Renderer/PostProcessingPipeline.cpp src/Renderer/ToneMapPass.cpp)
+target_include_directories(PostProcessing PUBLIC src)
+target_compile_definitions(PostProcessing PUBLIC UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+if(MSVC)
+    target_compile_options(PostProcessing PRIVATE /W4 /permissive- /utf-8 /EHsc)
+endif()
+target_link_libraries(ImageSceneRenderer PRIVATE PostProcessing)
+add_library(SceneCore src/Scene/Transform.cpp src/Scene/Camera.cpp src/Scene/Mesh.cpp src/Scene/Scene.cpp)
+target_sources(SceneCore PRIVATE src/Scene/Bounds.cpp)
+target_include_directories(SceneCore PUBLIC src)
+target_compile_definitions(SceneCore PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(ImageSceneRenderer PRIVATE SceneCore)
+add_library(GltfParser STATIC src/Assets/Cgltf.cpp external/mikktspace/mikktspace.c)
+target_include_directories(GltfParser SYSTEM PUBLIC external/cgltf external/mikktspace)
+add_library(AssetCore STATIC src/Assets/AssetIO.cpp src/Assets/ImageDecoder.cpp src/Assets/TextureProcessing.cpp
+    src/Assets/MeshProcessing.cpp src/Assets/AssetManager.cpp src/Assets/ModelLoader.cpp
+    src/Assets/GltfAccessors.cpp src/Assets/GltfMaterials.cpp src/Assets/GltfMesh.cpp)
+target_sources(AssetCore PRIVATE src/Assets/HdrImage.cpp)
+target_link_libraries(AssetCore PUBLIC SceneCore PRIVATE GltfParser windowscodecs ole32 crypt32)
+target_link_libraries(ImageSceneRenderer PRIVATE AssetCore)
+add_library(ScenePackageCore STATIC src/ScenePackage/JsonSchema.cpp src/ScenePackage/PackageManifest.cpp
+    src/ScenePackage/PackageMaterial.cpp src/ScenePackage/ScenePackageLoader.cpp)
+target_include_directories(ScenePackageCore SYSTEM PUBLIC external)
+target_include_directories(ScenePackageCore PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/package-schema")
+target_link_libraries(ScenePackageCore PUBLIC AssetCore)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/schemas/scene-package.schema.json" SCENE_PACKAGE_SCHEMA)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/schemas/scene-package.schema.json")
+configure_file(src/ScenePackage/EmbeddedSchema.h.in package-schema/EmbeddedSchema.h @ONLY)
+target_link_libraries(ImageSceneRenderer PRIVATE ScenePackageCore)
+add_executable(ValidateScenePackage tools/ValidateScenePackage.cpp src/Core/Log.cpp)
+target_link_libraries(ValidateScenePackage PRIVATE ScenePackageCore)
+if(MSVC)
+    target_compile_options(ScenePackageCore PRIVATE /W4 /permissive- /utf-8 /EHsc)
+    target_compile_options(ValidateScenePackage PRIVATE /W4 /permissive- /utf-8 /EHsc)
+endif()
+if(MSVC)
+    target_compile_options(AssetCore PRIVATE /W4 /permissive- /utf-8 /EHsc)
+endif()
+if(MSVC)
+    target_compile_options(SceneCore PRIVATE /W4 /permissive- /utf-8 /EHsc)
+endif()
+target_include_directories(ImageSceneRenderer PRIVATE src)
+target_compile_definitions(ImageSceneRenderer PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(ImageSceneRenderer PRIVATE d3d12 dxgi dxguid user32 shell32)
+if(MSVC)
+    target_compile_options(ImageSceneRenderer PRIVATE /W4 /permissive- /utf-8 /EHsc)
+endif()
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT ImageSceneRenderer)
+
+# Use DXC from the installed Windows SDK, or a user-supplied x64 DXC distribution.
+set(DXC_RUNTIME_DIR "" CACHE PATH "Directory containing x64 dxcompiler.dll and dxil.dll")
+if(NOT DXC_RUNTIME_DIR)
+    file(GLOB sdk_bins "C:/Program Files (x86)/Windows Kits/10/bin/10.*/x64")
+    list(SORT sdk_bins COMPARE NATURAL ORDER DESCENDING)
+    find_file(DXC_DLL dxcompiler.dll HINTS "$ENV{WindowsSdkVerBinPath}/x64" ${sdk_bins} REQUIRED)
+    get_filename_component(DXC_RUNTIME_DIR "${DXC_DLL}" DIRECTORY)
+endif()
+if(NOT EXISTS "${DXC_RUNTIME_DIR}/dxcompiler.dll" OR NOT EXISTS "${DXC_RUNTIME_DIR}/dxil.dll")
+    message(FATAL_ERROR "Set DXC_RUNTIME_DIR to an x64 DXC runtime directory.")
+endif()
+add_custom_target(RendererRuntime ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:ImageSceneRenderer>/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/shaders" "$<TARGET_FILE_DIR:ImageSceneRenderer>/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets/environments" "$<TARGET_FILE_DIR:ImageSceneRenderer>/assets/environments"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DXC_RUNTIME_DIR}/dxcompiler.dll" "${DXC_RUNTIME_DIR}/dxil.dll" "$<TARGET_FILE_DIR:ImageSceneRenderer>"
+    VERBATIM)
+add_dependencies(ImageSceneRenderer RendererRuntime)
+
+include(CTest)
+add_executable(GenerateAssets tools/GenerateAssets.cpp)
+add_executable(GenerateEnvironments tools/GenerateEnvironments.cpp)
+target_link_libraries(GenerateEnvironments PRIVATE AssetCore)
+target_link_libraries(GenerateAssets PRIVATE SceneCore windowscodecs ole32)
+if(MSVC)
+    target_compile_options(GenerateAssets PRIVATE /utf-8 /EHsc)
+endif()
+if(BUILD_TESTING)
+    add_executable(ScenePackageTests tests/ScenePackageTests.cpp src/Core/Log.cpp)
+    target_link_libraries(ScenePackageTests PRIVATE ScenePackageCore)
+    target_compile_definitions(ScenePackageTests PRIVATE PACKAGE_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/ScenePackage")
+    # Optional tooling tests only: Python is never a dependency of the C++ Renderer.
+    find_package(Python3 3.10 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME ScenePackageInterop COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/reconstruction/test_scene_package.py" --validator "$<TARGET_FILE:ValidateScenePackage>")
+        set_tests_properties(ScenePackageInterop PROPERTIES TIMEOUT 120)
+    endif()
+    add_executable(PostProcessingTests tests/PostProcessingTests.cpp src/App/LookOptions.cpp
+        src/Renderer/DeviceContext.cpp src/Renderer/DescriptorAllocator.cpp src/Renderer/Texture.cpp
+        src/Renderer/RootSignature.cpp src/Renderer/PipelineState.cpp src/Renderer/ShaderCompiler.cpp src/Core/Log.cpp)
+    target_link_libraries(PostProcessingTests PRIVATE PostProcessing d3d12 dxgi dxguid)
+    add_dependencies(PostProcessingTests RendererRuntime)
+    add_executable(WindowInputTests tests/WindowInputTests.cpp src/App/Window.cpp src/App/CameraController.cpp src/UI/ImGuiInput.cpp src/Core/Log.cpp)
+    target_link_libraries(WindowInputTests PRIVATE SceneCore ImGui user32)
+    target_compile_definitions(WindowInputTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    add_executable(LightingTests tests/LightingTests.cpp src/Renderer/EnvironmentBaker.cpp
+        src/Renderer/DeviceContext.cpp src/Renderer/DescriptorAllocator.cpp src/Renderer/UploadBuffer.cpp
+        src/Renderer/RootSignature.cpp src/Renderer/ShaderCompiler.cpp src/Core/Log.cpp)
+    target_include_directories(LightingTests PRIVATE src)
+    target_compile_definitions(LightingTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(LightingTests PRIVATE AssetCore d3d12 dxgi dxguid)
+    add_dependencies(LightingTests RendererRuntime)
+    add_executable(PbrTests tests/PbrTests.cpp src/Renderer/DeviceContext.cpp src/Renderer/RootSignature.cpp src/Renderer/ShaderCompiler.cpp src/Core/Log.cpp)
+    target_include_directories(PbrTests PRIVATE src)
+    target_compile_definitions(PbrTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(PbrTests PRIVATE d3d12 dxgi dxguid)
+    add_dependencies(PbrTests RendererRuntime)
+    add_executable(AssetTests tests/AssetTests.cpp src/Core/Log.cpp)
+    target_link_libraries(AssetTests PRIVATE AssetCore GltfParser)
+    target_compile_definitions(AssetTests PRIVATE ASSET_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/models/MaterialLab")
+    add_executable(SceneTests tests/SceneTests.cpp src/App/CameraController.cpp)
+    target_link_libraries(SceneTests PRIVATE SceneCore)
+    add_executable(ResourceTests tests/ResourceTests.cpp src/Renderer/DeviceContext.cpp
+        src/Renderer/DescriptorAllocator.cpp src/Renderer/UploadBuffer.cpp src/Renderer/Texture.cpp src/Core/Log.cpp)
+    target_include_directories(ResourceTests PRIVATE src)
+    target_compile_definitions(ResourceTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(ResourceTests PRIVATE d3d12 dxgi dxguid)
+    foreach(test_target SceneTests ResourceTests AssetTests PbrTests LightingTests WindowInputTests PostProcessingTests ScenePackageTests)
+        if(MSVC)
+            target_compile_options(${test_target} PRIVATE /W4 /permissive- /utf-8 /EHsc)
+        endif()
+        add_test(NAME ${test_target} COMMAND ${test_target})
+        set_tests_properties(${test_target} PROPERTIES TIMEOUT 60)
+    endforeach()
+endif()

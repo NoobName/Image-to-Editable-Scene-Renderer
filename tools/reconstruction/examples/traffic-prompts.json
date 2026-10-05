@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "regions": [
+    {"id":"car-left","name":"Car","category":"foreground","box":[0,0.62,0.49,1],"points":[[0.23,0.80,1]]},
+    {"id":"car-center","name":"Car Center","category":"foreground","box":[0.41,0.58,0.58,0.79],"points":[[0.50,0.67,1]]},
+    {"id":"van","name":"Van","category":"foreground","box":[0.77,0.40,1,1],"points":[[0.93,0.79,1]]},
+    {"id":"building-left","name":"Building","category":"major","points":[[0.14,0.33,1],[0.24,0.13,1],[0.59,0.20,0],[0.23,0.78,0]]},
+    {"id":"building-right","name":"Building Right","category":"major","points":[[0.78,0.36,1],[0.92,0.31,1],[0.68,0.20,0],[0.94,0.8,0]]},
+    {"id":"sky","name":"Sky","category":"sky","points":[[0.53,0.23,1],[0.84,0.08,1],[0.78,0.36,0]]},
+    {"id":"ground","name":"Ground","category":"ground","points":[[0.59,0.96,1],[0.52,0.86,1],[0.45,0.7,0],[0.93,0.8,0]]}
+  ]
+}

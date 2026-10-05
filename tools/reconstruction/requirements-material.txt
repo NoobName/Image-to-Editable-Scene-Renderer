@@ -1,0 +1,5 @@
+# Inference only. Keep the existing torch / torchvision / huggingface-hub pins.
+diffusers==0.35.2
+transformers==4.55.4
+accelerate==1.10.1
+safetensors==0.6.2

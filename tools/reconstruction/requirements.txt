@@ -1,0 +1,4 @@
+# Dummy pipeline only. Python 3.12+; no PyTorch, CUDA or model weights.
+numpy==2.5.3
+Pillow==12.3.0
+OpenEXR==3.5.2

@@ -1,0 +1,632 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:imagescenerenderer:scene-package:1",
+  "title": "ImageSceneRenderer ScenePackage v1",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "coordinateSystem": {
+      "const": "left-handed-y-up"
+    },
+    "units": {
+      "const": "meters"
+    },
+    "camera": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "target": {
+          "$ref": "#/$defs/vec3"
+        },
+        "fovYDegrees": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 175,
+          "default": 45
+        },
+        "aspect": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 100,
+          "default": 1.7777777777777777
+        },
+        "near": {
+          "type": "number",
+          "minimum": 0.0001,
+          "maximum": 100000,
+          "default": 0.1
+        },
+        "far": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 1000000,
+          "default": 1000
+        }
+      },
+      "required": [
+        "position",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "hdri": {
+          "$ref": "#/$defs/path"
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 1
+        },
+        "rotationDegrees": {
+          "type": "number",
+          "minimum": -3600,
+          "maximum": 3600,
+          "default": 0
+        },
+        "ibl": {
+          "type": "boolean",
+          "default": true
+        },
+        "skybox": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "lights": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "directional"
+              },
+              "direction": {
+                "$ref": "#/$defs/vec3"
+              },
+              "color": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "default": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "intensity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100000,
+                "default": 3
+              }
+            },
+            "required": [
+              "type",
+              "direction"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "point"
+              },
+              "position": {
+                "$ref": "#/$defs/vec3"
+              },
+              "color": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "default": [
+                  1,
+                  1,
+                  1
+                ]
+              },
+              "intensity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100000,
+                "default": 3
+              },
+              "range": {
+                "type": "number",
+                "minimum": 0.001,
+                "maximum": 100000,
+                "default": 10
+              }
+            },
+            "required": [
+              "type",
+              "position"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "objects": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mesh": {
+            "$ref": "#/$defs/path"
+          },
+          "transform": {
+            "type": "object",
+            "properties": {
+              "position": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "number",
+                  "minimum": -1000000,
+                  "maximum": 1000000
+                },
+                "default": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "rotationDegrees": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "number",
+                  "minimum": -3600,
+                  "maximum": 3600
+                },
+                "default": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "scale": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": {
+                  "type": "number",
+                  "minimum": -10000,
+                  "maximum": 10000
+                },
+                "default": [
+                  1,
+                  1,
+                  1
+                ]
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "default": {}
+          },
+          "material": {
+            "$ref": "#/$defs/material"
+          },
+          "visible": {
+            "type": "boolean",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional for legacy packages; unique stable object identifier."
+          },
+          "region": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "look": {
+      "$ref": "#/$defs/look"
+    },
+    "auxiliary": {
+      "type": "object",
+      "properties": {
+        "depth": {
+          "$ref": "#/$defs/path"
+        },
+        "normal": {
+          "$ref": "#/$defs/path"
+        },
+        "pointmap": {
+          "$ref": "#/$defs/path"
+        },
+        "segmentation": {
+          "$ref": "#/$defs/path"
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "default": {}
+    }
+  },
+  "required": [
+    "version",
+    "coordinateSystem",
+    "units",
+    "camera",
+    "environment",
+    "lights",
+    "objects"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number",
+        "minimum": -1000000,
+        "maximum": 1000000
+      }
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "UTF-8 package-relative path using /; no absolute paths, URLs or .. components."
+    },
+    "material": {
+      "type": "object",
+      "properties": {
+        "originalImage": { "$ref": "#/$defs/path" },
+        "confidence": { "$ref": "#/$defs/path" },
+        "albedoSource": { "enum": ["authored", "intrinsic", "neutral-fallback"], "default": "authored" },
+        "normalSource": { "enum": ["authored", "estimated-tangent", "flat-tangent-fallback"], "default": "authored" },
+        "baseColor": {
+          "$ref": "#/$defs/path"
+        },
+        "normal": {
+          "$ref": "#/$defs/path"
+        },
+        "roughness": {
+          "$ref": "#/$defs/path"
+        },
+        "metallic": {
+          "$ref": "#/$defs/path"
+        },
+        "emissive": {
+          "$ref": "#/$defs/path"
+        },
+        "occlusion": {
+          "$ref": "#/$defs/path"
+        },
+        "baseColorFactor": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "roughnessFactor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        },
+        "metallicFactor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        },
+        "emissiveFactor": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "normalStrength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4,
+          "default": 1
+        },
+        "ao": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        },
+        "occlusionStrength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1
+        },
+        "doubleSided": {
+          "type": "boolean",
+          "default": false
+        },
+        "alphaMode": {
+          "enum": [
+            "opaque",
+            "mask",
+            "blend"
+          ],
+          "default": "opaque"
+        },
+        "alphaCutoff": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "description": "If present, replaces all primitive materials in this object. Texture paths use UV0, repeat, linear+mipmap. Roughness/metallic read R; absent maps are white."
+    },
+    "look": {
+      "type": "object",
+      "properties": {
+        "exposure": {
+          "type": "number",
+          "minimum": -16,
+          "maximum": 16,
+          "default": 0
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "default": 0
+        },
+        "tint": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "default": 0
+        },
+        "saturation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 1
+        },
+        "contrast": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 2,
+          "default": 1
+        },
+        "gamma": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 4,
+          "default": 1
+        },
+        "tone-mapping": {
+          "enum": [
+            "none",
+            "reinhard",
+            "aces"
+          ],
+          "default": "aces"
+        },
+        "bloom": {
+          "type": "boolean",
+          "default": false
+        },
+        "bloom-intensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0.08
+        },
+        "bloom-threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20,
+          "default": 1
+        },
+        "bloom-knee": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5
+        },
+        "bloom-radius": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 2,
+          "default": 1
+        },
+        "vignette": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        },
+        "vignette-radius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.35
+        },
+        "vignette-softness": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 1,
+          "default": 0.65
+        },
+        "fog-density": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "default": {}
+    },
+    "region": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "labelId": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777215
+        },
+        "category": {
+          "enum": [
+            "sky",
+            "ground",
+            "foreground",
+            "major",
+            "background"
+          ]
+        },
+        "mask": {
+          "$ref": "#/$defs/path"
+        },
+        "imageSize": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16384
+          }
+        },
+        "boundingBox": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16384
+          }
+        },
+        "pixelCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        },
+        "validDepthPixels": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 268435456
+        },
+        "averageDepth": {
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 1e-8,
+              "maximum": 10000
+            },
+            {
+              "const": null
+            }
+          ]
+        },
+        "namingSource": {
+          "enum": [
+            "prompt",
+            "geometry-heuristic",
+            "fallback",
+            "dummy"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "triangleCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50000000
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "labelId",
+        "category",
+        "mask",
+        "imageSize",
+        "boundingBox",
+        "pixelCount",
+        "validDepthPixels",
+        "averageDepth",
+        "namingSource",
+        "score",
+        "triangleCount"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

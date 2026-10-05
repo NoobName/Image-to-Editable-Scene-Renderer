@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "coordinateSystem": "left-handed-y-up",
+  "units": "meters",
+  "camera": {
+    "position": [
+      8,
+      5,
+      -13
+    ],
+    "target": [
+      0,
+      0.6,
+      0
+    ],
+    "far": 200,
+    "fovYDegrees": 45,
+    "aspect": 1.7777777777777777,
+    "near": 0.1
+  },
+  "environment": {
+    "hdri": "textures/SoftStudio.hdr",
+    "intensity": 0.7,
+    "rotationDegrees": 25,
+    "ibl": true,
+    "skybox": true
+  },
+  "lights": [
+    {
+      "type": "directional",
+      "direction": [
+        0.4,
+        -0.8,
+        0.5
+      ],
+      "intensity": 2,
+      "color": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "type": "point",
+      "position": [
+        0,
+        4,
+        -3
+      ],
+      "color": [
+        0.6,
+        0.8,
+        1
+      ],
+      "intensity": 12,
+      "range": 15
+    }
+  ],
+  "objects": [
+    {
+      "name": "Original Materials",
+      "mesh": "meshes/MaterialLab.glb",
+      "transform": {
+        "position": [
+          -2.7,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "visible": true
+    },
+    {
+      "name": "Package Material",
+      "mesh": "meshes/MaterialLab.glb",
+      "transform": {
+        "position": [
+          5,
+          0,
+          0
+        ],
+        "rotationDegrees": [
+          0,
+          15,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "material": {
+        "baseColor": "textures/baseColor.png",
+        "normal": "textures/normal.png",
+        "roughness": "textures/roughness.png",
+        "metallic": "textures/metallic.png",
+        "normalStrength": 0.6,
+        "baseColorFactor": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "roughnessFactor": 1,
+        "metallicFactor": 1,
+        "emissiveFactor": [
+          0,
+          0,
+          0
+        ],
+        "ao": 1,
+        "occlusionStrength": 1,
+        "doubleSided": false,
+        "alphaMode": "opaque",
+        "alphaCutoff": 0.5
+      },
+      "visible": true
+    }
+  ],
+  "look": {
+    "exposure": 0.3,
+    "bloom": true,
+    "bloom-intensity": 0.12,
+    "vignette": 0.15,
+    "temperature": 0,
+    "tint": 0,
+    "saturation": 1,
+    "contrast": 1,
+    "gamma": 1,
+    "tone-mapping": "aces",
+    "bloom-threshold": 1,
+    "bloom-knee": 0.5,
+    "bloom-radius": 1,
+    "vignette-radius": 0.35,
+    "vignette-softness": 0.65,
+    "fog-density": 0
+  },
+  "auxiliary": {
+    "segmentation": "masks/segmentation.png"
+  }
+}

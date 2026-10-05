@@ -1,0 +1,17 @@
+# Local learning notes: never publish to GitHub.
+/docs/
+/build/
+/out/
+/generated/*
+!/generated/.gitkeep
+/.vs/
+/CMakeUserPresets.json
+*.user
+*.pdb
+*.log
+__pycache__/
+*.pyc
+/tools/reconstruction/.venv/
+/tools/reconstruction/generated/
+/tools/reconstruction/.vendor/
+/tools/reconstruction/.cache/
