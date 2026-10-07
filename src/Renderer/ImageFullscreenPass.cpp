@@ -3,7 +3,7 @@
 namespace isr {
 ImageFullscreenPass::ImageFullscreenPass(ID3D12Device* device,const std::filesystem::path& path,const wchar_t* entry,DXGI_FORMAT format,UINT inputs,UINT constants)
     :inputs_(inputs),constants_(constants){
-    if(!inputs||inputs>16||!constants||constants>40||inputs+constants>64)throw std::invalid_argument("Image root signature budget exceeded");
+    if(!inputs||inputs>16||!constants||constants>64||inputs+constants>64)throw std::invalid_argument("Image root signature budget exceeded");
     std::vector<D3D12_DESCRIPTOR_RANGE> ranges(inputs);std::vector<D3D12_ROOT_PARAMETER> params(inputs+1);
     for(UINT i=0;i<inputs;++i){ranges[i]={D3D12_DESCRIPTOR_RANGE_TYPE_SRV,1,i,0,0};params[i].ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         params[i].DescriptorTable={1,&ranges[i]};params[i].ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL;}

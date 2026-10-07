@@ -27,7 +27,7 @@ std::optional<Bounds> SceneEditState::SelectionBounds(const Scene& scene,size_t 
     }
     if(!found)return {};Bounds result;XMStoreFloat3(&result.minimum,lo);XMStoreFloat3(&result.maximum,hi);return result;
 }
-std::optional<size_t> SceneEditState::Pick(const Scene& scene,float u,float v)const{
+std::optional<size_t> SceneEditState::Pick(const Scene& scene,float u,float v,XMFLOAT3* hitPosition)const{
     if(!std::isfinite(u+v)||u<0||u>1||v<0||v>1)return {};
     const auto inverse=XMMatrixInverse(nullptr,scene.camera.View()*scene.camera.Projection());
     const auto nearPoint=XMVector3TransformCoord(XMVectorSet(u*2-1,1-v*2,0,1),inverse);
@@ -46,7 +46,7 @@ std::optional<size_t> SceneEditState::Pick(const Scene& scene,float u,float v)co
             if(!TriangleTests::Intersects(origin,ray,a,b,c,distance))continue;
             const auto worldHit=XMVector3TransformCoord(origin+ray*distance,world);
             const auto worldDistance=XMVectorGetX(XMVector3Dot(worldHit-nearPoint,direction));
-            if(worldDistance>=0&&worldDistance<nearest){nearest=worldDistance;hit=i;}
+            if(worldDistance>=0&&worldDistance<nearest){nearest=worldDistance;hit=i;if(hitPosition)XMStoreFloat3(hitPosition,worldHit);}
         }
     }
     if(hit){size_t ancestor=*hit;

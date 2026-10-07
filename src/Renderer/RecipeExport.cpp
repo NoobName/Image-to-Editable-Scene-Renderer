@@ -22,7 +22,7 @@ void Renderer::ExportImage(const std::filesystem::path& output){
     auto* composite=activeScene_?activeScene_->imageComposite.get():imageComposite_.get();
     auto* shading=activeScene_?activeScene_->imageRelighting.get():imageRelighting_.get();
     context_.Flush();auto& frame=*frames_[0];frame.Begin(context_);Check(commandList_->Reset(frame.commandAllocator.Get(),nullptr));
-    shading->Update(commandList_.Get(),session_.lighting);composite->EditProtection(context_.Device(),commandList_.Get(),frame,*session_.Source(),session_.protection);
+    shading->Update(commandList_.Get(),session_.lighting,session_.pointLights);composite->EditProtection(context_.Device(),commandList_.Get(),frame,*session_.Source(),session_.protection);
     composite->Update(commandList_.Get(),session_.relighting,session_.lighting.cacheValid,&frame,session_.fog);
     std::array<Texture*,7> textures{composite->Final().Image().texture,shading->Old().Image().texture,shading->New().Image().texture,composite->Ratio().Image().texture,&composite->Quality(0),
         &composite->Fog()->Distance(),composite->PreFog().Image().texture};

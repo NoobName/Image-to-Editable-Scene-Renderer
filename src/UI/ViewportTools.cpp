@@ -1,3 +1,4 @@
+#include "UI/ChineseText.h"
 #include "UI/ViewportTools.h"
 #include "Core/Log.h"
 #include <algorithm>
@@ -17,12 +18,13 @@ void Outline(const Scene& scene,const SceneSelection& selection,const SceneEditS
     }
     auto* draw=ImGui::GetWindowDrawList();draw->PushClipRect(a,b,true);
     for(unsigned i=0;i<8;++i)for(unsigned axis=1;axis<=4;axis*=2)if(!(i&axis)&&valid[i]&&valid[i|axis])draw->AddLine(points[i],points[i|axis],IM_COL32(255,190,65,230),1.5f);
-    const auto label="Selected: "+scene.entities[selection.index].name;
+    const auto label="已选择："+ChineseText(scene.entities[selection.index].name);
     draw->AddText({a.x+9,b.y-ImGui::GetTextLineHeight()-8},IM_COL32(255,210,115,255),label.c_str());draw->PopClipRect();
 }
 }
 bool ViewportTools::Draw(Scene& scene,SceneSelection& selection,SceneEditState& edit,ImVec2 a,ImVec2 b,bool imageHovered){
     auto& io=ImGui::GetIO();std::optional<size_t> light;
+    if(DrawScenePointLights(scene,selection,edit,points,a,b,imageHovered)){dragLight_.reset();return true;}
     if(selection.kind==SelectionKind::Light&&selection.index<scene.lights.size()&&scene.lights[selection.index].type==LightType::Directional)light=selection.index;
     if(!light)for(size_t i=0;i<scene.lights.size();++i)if(scene.lights[i].type==LightType::Directional){light=i;break;}
     const bool show=light&&b.x-a.x>190&&b.y-a.y>170;
@@ -41,10 +43,10 @@ bool ViewportTools::Draw(Scene& scene,SceneSelection& selection,SceneEditState& 
         auto& sun=scene.lights[*dragLight_];sun.direction=DragSunDirection(sun.direction,scene.camera,io.MouseDelta.x,io.MouseDelta.y);
     }
     if(ImGui::IsItemDeactivated()&&dragLight_){Log("Sun gizmo edited directional light "+std::to_string(*dragLight_));dragLight_.reset();}
-    if(hovered)ImGui::SetTooltip("Drag with left mouse to rotate the sun relative to the camera.\nThe arrow points toward the sun; Inspector Direction is light travel.\nLighting changes are visible in Final mode.");
+    if(hovered)ImGui::SetTooltip("按住左键拖动，以相机为参照旋转太阳。\n箭头指向太阳，属性中的方向表示光线传播方向。\n在最终效果模式中查看光照变化。");
     auto* draw=ImGui::GetWindowDrawList();draw->PushClipRect(a,b,true);
     draw->AddRectFilled(minimum,maximum,IM_COL32(12,19,28,225),8);
-    draw->AddText({minimum.x+10,minimum.y+7},IM_COL32(245,214,145,255),"SUN / drag LMB");
+    draw->AddText({minimum.x+10,minimum.y+7},IM_COL32(245,214,145,255),"太阳 / 左键拖动");
     const ImVec2 center{(minimum.x+maximum.x)*.5f,minimum.y+77};constexpr float radius=41;
     draw->AddCircleFilled(center,radius,IM_COL32(32,45,60,255),48);draw->AddCircle(center,radius,IM_COL32(112,139,159,255),48);
     draw->AddLine({center.x-radius,center.y},{center.x+radius,center.y},IM_COL32(69,89,105,255));
@@ -53,7 +55,7 @@ bool ViewportTools::Draw(Scene& scene,SceneSelection& selection,SceneEditState& 
     const ImVec2 tip{center.x+direction.x*radius,center.y-direction.y*radius};
     const auto color=IM_COL32(255,199,78,255);draw->AddLine(center,tip,color,2.5f);
     draw->AddCircleFilled(tip,6,color,16);if(direction.z>0)draw->AddCircle(tip,9,IM_COL32(240,149,68,255),20);
-    draw->AddText({minimum.x+10,minimum.y+126},IM_COL32(164,179,190,255),direction.z>0?"Sun: into view":"Sun: toward eye");
+    draw->AddText({minimum.x+10,minimum.y+126},IM_COL32(164,179,190,255),direction.z>0?"太阳：朝向视野深处":"太阳：朝向观察者");
     draw->PopClipRect();ImGui::SetCursorScreenPos(cursor);ImGui::Dummy({0,0});return hovered||active;
 }
 }

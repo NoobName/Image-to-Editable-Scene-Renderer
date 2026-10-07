@@ -8,6 +8,7 @@ from tests import test_analysis, test_lighting, test_image_ratio, test_stability
 from tests import test_reference
 from tests import test_optimization
 from tests import test_image_fog
+from tests import test_neural_refinement_contract
 
 
 def main():
@@ -22,6 +23,7 @@ def main():
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromModule(module) for module in (test_stages, test_pipeline, test_geometry_backend, test_grid_mesh, test_segmentation, test_material, test_progress, test_appearance, test_analysis, test_lighting, test_image_ratio, test_stability, test_intrinsic, test_diffuse, test_specular, test_shadow, test_cast_shadow, test_reference))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(test_optimization))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(test_image_fog))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(test_neural_refinement_contract))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1
 

@@ -14,7 +14,7 @@ public:
     void RestoreTransform(Scene&,size_t index)const;
     std::optional<Bounds> SelectionBounds(const Scene&,size_t entity)const;
     // Screen coordinates are normalized 0..1 within the rendered image (Y downward).
-    std::optional<size_t> Pick(const Scene&,float u,float v)const;
+    std::optional<size_t> Pick(const Scene&,float u,float v,DirectX::XMFLOAT3* hitPosition=nullptr)const;
     void EditTransform(Scene&,size_t entity,Transform next,bool preserveCenter)const;
 private:
     bool captured_=false;

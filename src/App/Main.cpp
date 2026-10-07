@@ -9,7 +9,7 @@ std::wstring ErrorText(const char* text){
     UINT codePage=CP_UTF8;DWORD flags=MB_ERR_INVALID_CHARS;
     int size=MultiByteToWideChar(codePage,flags,text,-1,nullptr,0);
     if(!size){codePage=CP_ACP;flags=0;size=MultiByteToWideChar(codePage,flags,text,-1,nullptr,0);}
-    if(!size)return L"Unknown application error";
+    if(!size)return L"未知程序错误";
     std::wstring result(size,L'\0');MultiByteToWideChar(codePage,flags,text,-1,result.data(),size);result.pop_back();return result;
 }
 }
@@ -29,11 +29,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         // waiting for a dialog. Both paths keep the full error in the log.
         if(!unattended){
             auto message=ErrorText(e.what());const auto log=isr::LogPath();
-            if(!log.empty())message+=L"\n\nLog: "+log.wstring();
+            if(!log.empty())message+=L"\n\n日志："+log.wstring();
             // A Window destroyed while unwinding posts WM_QUIT. Remove that
             // stale quit before starting MessageBox's modal message loop.
             MSG quit{};while(PeekMessageW(&quit,nullptr,WM_QUIT,WM_QUIT,PM_REMOVE)){}
-            MessageBoxW(nullptr,message.c_str(),L"ImageSceneRenderer - Error",MB_OK|MB_ICONERROR);
+            MessageBoxW(nullptr,message.c_str(),L"图像到可编辑场景渲染器 - 错误",MB_OK|MB_ICONERROR);
         }
         return 1;
     }

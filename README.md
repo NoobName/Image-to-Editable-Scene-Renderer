@@ -1,5 +1,7 @@
 # Image-to-Editable-Scene Renderer
 
+界面默认使用简体中文，覆盖双模式菜单、属性、调试视图、重建状态与配方操作。使用 Windows 系统中文字体（优先微软雅黑）；模型名称、用户资产名、文件路径与技术缩写保留原文。命令行参数和文件字段仍使用原有英文标识，文档中的旧英文控件名称可对应中文界面。
+
 Optional 33 已加入独立的额外图像雾：固定 source 距离、明确尺度、天空/无效区保护，默认关闭；Recipe v2 保存参数，仍可读取 v1。3D 与原图不变，不做去雾。[使用与契约](tools/ImageFog.md)。
 
 阶段32收尾：加入可复现的 Core Demo、独立新目录验收脚本和 CPU/GPU p50/p95 / 显存测量。图像处理与双模式架构不变；不依赖 Optional 33–35。[演示顺序、质量矩阵、离线命令和性能口径](tools/CoreDemo.md)；[模型 revision、照片来源与许可证边界](tools/ModelProvenance.md)。`Run-Smoke.ps1 -Profile` 输出原始时间样本；`-ImageSmoke profile-drag` 持续改变 target 灯，不能将 ImGui 平均 FPS 当作 GPU 耗时。
@@ -531,3 +533,30 @@ python tools/reconstruction/fog_examples.py generated/fog-inputs
 ```
 
 [Contract, limits, debug views and verification commands](tools/ImageFog.md). The optional pass retains the [Core Demo](tools/CoreDemo.md) regression requirements. Local detailed teaching/validation remains ignored under `docs/`.
+
+## Optional 34: offline neural refinement
+
+An explicit **Recipe / Export → Optional offline neural refinement** action can run a pinned
+PIXLRelight adapter after a native physics export. Original and physics remain unchanged;
+refined candidates, content-drift diagnostics and exact revision/seed recipes are saved
+separately. The comparison button opens a local Original / Physics / Refined report, while
+the Main Viewport keeps physics. Cancellation/failure/stale edits retain that usable result.
+This is disabled by default, requires optional research weights (CC BY-NC 4.0), and never
+runs on each light drag. It does not turn generated shadows/reflections into measurements.
+
+[Setup, guidance contract, offline replay and validation](tools/NeuralRefinement.md) ·
+[Pinned model sources and separate licenses](tools/ModelProvenance.md#optional-stage-34-research).
+
+## 手动点光源（两种模式独立）
+
+现在可直接添加、放置和拖动点光源，UI 为中文：
+
+- **三维场景**：左侧“添加点光源”→ 点击视口 → 拖动彩色圆点。选中灯光后，在右侧调节位置、相机深度、颜色、强度、范围与启用状态。最多 8 个光源，包含已有方向光。
+- **图像重光照**：右侧“光照 → 图像点光源 → 添加点光源”→ 在有效几何区域点击。拖动圆点修改来源相机 XY 位置，右侧“来源相机深度”修改 Z。最多 4 个；需要已验证的原图、点位置、几何法线、内参和来源光照数据。
+- 虚线表示球形影响范围，随投影显示；不是阴影边界。仅放置或选择灯光时显示，可关闭“显示位置与范围”。Esc 取消放置。
+- 图像灯光仅增加目标漫反射，沿用置信度、保护蒙版与有界比率；不修改原图或三维灯光。当前不增加点光源阴影、图像点光源镜面高光。颜色变化还受既有颜色模式和保护限制。
+- 图像灯光可通过“配方 / 导出”保存重开；有点光源的配方使用 v3。三维灯光仍仅在本次会话保存。参见 [配方契约](tools/RelightingRecipe.md)。
+
+快速打开三维示例：`.\build\Debug\ImageSceneRenderer.exe --ui`。打开自己的完整重建包时使用 `--package "包目录" --work-mode image --ui`。无需重新运行模型即可编辑已有包。
+
+验证脚本 `tools/Run-Smoke.ps1` 新增 `-OutputDirectory build`，可将日志/截图保存在 build，避免写入 generated。相关事件测试为 `ImageWorkspaceTests` / `ViewportToolsTests`，GPU 数值测试为 `ImageShadingTests`；`tools/reconstruction/verify_point_lights.py` 检查小型合成配方及原尺寸导出。

@@ -19,13 +19,13 @@ void AsyncFileDialog::Choose(HWND owner,int kind){
         const HRESULT apartment=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);Check(apartment);
         struct Cleanup{AsyncFileDialog& self;~Cleanup(){self.dialog_=nullptr;CoUninitialize();}} cleanup{*this};
         std::array<wchar_t,32768> path{};OPENFILENAMEW request{};request.lStructSize=sizeof(request);request.hwndOwner=owner;
-        request.lpstrFilter=python?L"Python interpreter (python.exe)\0*.exe\0\0":L"Images (*.jpg;*.jpeg;*.png)\0*.jpg;*.jpeg;*.png\0\0";
+        request.lpstrFilter=python?L"Python 解释器 (python.exe)\0*.exe\0\0":L"图像 (*.jpg;*.jpeg;*.png)\0*.jpg;*.jpeg;*.png\0\0";
         request.lpstrFile=path.data();request.nMaxFile=static_cast<DWORD>(path.size());
-        request.lpstrTitle=python?L"Select project environment python.exe":L"Reconstruct Image";
+        request.lpstrTitle=python?L"选择项目环境中的 python.exe":L"从图像重建";
         request.Flags=OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR|OFN_ENABLEHOOK;
         request.lpfnHook=Hook;request.lCustData=reinterpret_cast<LPARAM>(this);
-        if(kind>=2){request.lpstrFilter=L"Relighting recipe (*.json)\0*.json\0\0";request.lpstrDefExt=L"json";request.lpstrTitle=L"Relighting recipe";}
-        if(kind==4){request.lpstrFilter=L"Reference image or scene.json\0*.png;*.jpg;*.jpeg;*.json\0\0";request.lpstrTitle=L"Select reference image or saved ScenePackage scene.json";request.lpstrDefExt=nullptr;}
+        if(kind>=2){request.lpstrFilter=L"重光照配方 (*.json)\0*.json\0\0";request.lpstrDefExt=L"json";request.lpstrTitle=L"重光照配方";}
+        if(kind==4){request.lpstrFilter=L"参考图像或 scene.json\0*.png;*.jpg;*.jpeg;*.json\0\0";request.lpstrTitle=L"选择参考图像或已保存场景包的 scene.json";request.lpstrDefExt=nullptr;}
         if(kind==3){request.Flags&=~OFN_FILEMUSTEXIST;request.Flags|=OFN_OVERWRITEPROMPT;}
         if(kind==3?GetSaveFileNameW(&request):GetOpenFileNameW(&request))return std::filesystem::path(path.data());
         if(const auto error=CommDlgExtendedError())throw std::runtime_error("File chooser failed: "+std::to_string(error));

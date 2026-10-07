@@ -46,7 +46,7 @@ void ScenePass::Draw(ID3D12GraphicsCommandList* list,FrameContext& frame,const S
     lighting.shadowInfo={float(shadow.lightIndex),float(ShadowPass::Resolution),0,0};
     lighting.environment={settings.environmentIntensity,settings.environmentRotation,maxMip,settings.ibl?1.0f:0.0f};
     for(size_t i=0;i<scene.lights.size();++i){const auto& l=scene.lights[i];
-        lighting.lights[i]={{l.position.x,l.position.y,l.position.z,float(l.type)},{l.direction.x,l.direction.y,l.direction.z,l.range},{l.color.x,l.color.y,l.color.z,l.intensity}};}
+        lighting.lights[i]={{l.position.x,l.position.y,l.position.z,float(l.type)},{l.direction.x,l.direction.y,l.direction.z,l.range},{l.color.x,l.color.y,l.color.z,l.enabled?l.intensity:0}};}
     list->SetGraphicsRootConstantBufferView(3,frame.constants.Allocate(lighting));
     const auto vp=scene.camera.View()*scene.camera.Projection();std::vector<const Entity*> opaque,transparent;
     for(const auto& e:scene.entities)if(e.renderer&&e.renderer->visible)(scene.materials.at(e.renderer->materialIndex).alphaMode==AlphaMode::Blend?transparent:opaque).push_back(&e);

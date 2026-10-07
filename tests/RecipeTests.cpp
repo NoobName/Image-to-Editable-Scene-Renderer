@@ -20,10 +20,21 @@ int wmain(int argc,wchar_t** argv){try{
         ValidateNativeExportSize(1500,1000);ValidateNativeExportSize(3840,2160);
         Reject([]{ValidateNativeExportSize(8193,1);});Reject([]{ValidateNativeExportSize(4096,4096);});Reject([]{ValidateNativeExportSize(0,1);});
         auto source=std::make_shared<SourceObservation>();source->anchor.emplace();source->anchor->pixels=std::make_shared<ImageData>();source->regions.push_back({7,"stable-id","test"});
+        auto maps=std::make_shared<AnalysisMaps>();for(size_t i:{1,3,4})maps->maps[i].image.emplace();
+        maps->metadata={{"camera",{{"intrinsicsNormalized",{1,0,.5,0,1,.5,0,0,1}}}}};source->analysisMaps=maps;source->lighting=std::make_shared<LightingData>();
         RelightingSession s;s.Publish(source);s.protection.Apply(7,.8f);s.lighting.targetGlobalGain=1.3f;
         s.fog.enabled=true;s.fog.density=.7f;s.fog.allowRelativeScale=true;s.fog.airlight={.1f,.4f,.9f};
+        s.pointLights={{1,{.2f,.3f,2},{1,.5f,.2f},4,3,true},{42,{-.3f,0,1},{.1f,.5f,1},2,1,false}};
         const auto good=RecipeState(s);RelightingSession restored;restored.Publish(source);ApplyRecipeState(restored,good);Need(RecipeState(restored)==good,"CPU state roundtrip");
+        auto missing=std::make_shared<SourceObservation>(*source);missing->analysisMaps.reset();RelightingSession unsupported;unsupported.Publish(missing);
+        Reject([&]{ApplyRecipeState(unsupported,good);});Need(unsupported.pointLights.empty(),"Missing geometry point recipe mutated session");
         auto legacy=good;legacy.erase("imageFog");ApplyRecipeState(restored,legacy);Need(restored.fog==ImageFogParameters{},"Old recipe must reset atmosphere");
+        legacy.erase("imagePointLights");ApplyRecipeState(restored,legacy);Need(restored.pointLights.empty(),"Old recipe must clear image point lights");
+        for(int i=0;i<8;++i){auto bad=good;auto& points=bad["imagePointLights"];
+            if(i==0)points[1]["id"]=1;if(i==1)points[0]["position"][2]=0;if(i==2)points[0]["intensity"]=-1;
+            if(i==3)points[0]["range"]=10001;if(i==4)points[0]["color"][0]=2;if(i==5)points[0]["position"][0]=nullptr;
+            if(i==6)points[0]["unknown"]=true;if(i==7)while(points.size()<5)points.push_back(points[0]);
+            Reject([&]{ApplyRecipeState(s,bad);});Need(RecipeState(s)==good,"Point light validation must be atomic");}
         for(int i=0;i<5;++i){auto bad=good;if(i==0)bad["imageFog"]["density"]=-1;if(i==1)bad["imageFog"]["density"]=1001;
             if(i==2)bad["imageFog"]["airlightLinear"][0]=2;if(i==3)bad["imageFog"]["sourceAdditionalDensity"]=1;if(i==4)bad["imageFog"]["version"]=2;
             Reject([&]{ApplyRecipeState(s,bad);});Need(RecipeState(s)==good,"Fog validation must be atomic");}
@@ -38,6 +49,7 @@ int wmain(int argc,wchar_t** argv){try{
     auto loaded=ScenePackageLoader{}.Load(root/L"原包");RelightingSession s;s.Publish(loaded.observation);s.SetMode(WorkMode::ImageRelighting);
     s.lighting.target.direction[0]*=-1;s.lighting.targetGlobalGain=1.7f;s.display.exposure=.6f;s.display.lowConfidence=true;s.relighting.specularRoughnessScale=1.3f;s.relighting.shadowStrength=.82f;
     s.fog.enabled=true;s.fog.density=.37f;s.fog.allowRelativeScale=true;
+    s.pointLights={{7,{.2f,.1f,1},{1,.5f,.2f},2,3,true}};
     Need(!s.Source()->regions.empty(),"Region fixture required");s.protection.Apply(s.Source()->regions.front().label,.75f);
     const auto originalManifest=ReadAssetFile(root/L"原包/scene.json");const auto path=root/L"测试配方.json";SaveRecipe(path,s,{});
     const auto good=ReadAssetFile(path);auto restored=LoadRecipe(path);Need(RecipeState(restored.session)==RecipeState(s),"Full state round trip");

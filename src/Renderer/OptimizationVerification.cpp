@@ -13,7 +13,7 @@ double Renderer::VerifyOptimizationCandidate(const ReferenceAnalysis& data){
     shading->Update(commandList_.Get(),candidate);auto& texture=*shading->New().Image().texture;
     TextureReadback read(context_.Device(),commandList_.Get(),texture);
     // The copy is ordered before restoring live shading; no unapproved candidate reaches the viewport.
-    shading->Update(commandList_.Get(),session_.lighting);
+    shading->Update(commandList_.Get(),session_.lighting,session_.pointLights);
     Check(commandList_->Close());ID3D12CommandList* lists[]{commandList_.Get()};context_.Queue()->ExecuteCommandLists(1,lists);
     frame.fenceValue=context_.Signal();context_.Wait(frame.fenceValue);context_.CheckMessages();const auto actual=read.Read();const auto& expected=*data.candidate;
     if(actual.width!=expected.width||actual.height!=expected.height||actual.format!=expected.format)throw std::runtime_error("Optimization CPU/GPU candidate shape mismatch");

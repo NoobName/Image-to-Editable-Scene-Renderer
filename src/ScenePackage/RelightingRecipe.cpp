@@ -47,14 +47,27 @@ package::Json RecipeState(const RelightingSession& s){
         const auto found=std::find_if(s.Source()->regions.begin(),s.Source()->regions.end(),[&](const auto& r){return r.label==label;});
         Require(found!=s.Source()->regions.end(),"protection label has no stable region ID");regions.push_back({{"id",found->id},{"label",label},{"weight",weight}});
     }
-    return {{"sourceCalibration",{{"light",RecipeLight(s.lighting.source)},{"revision",s.lighting.sourceRevision},{"manual",s.lighting.manualSource},{"fitCacheValid",s.lighting.cacheValid}}},
+    Json state={{"sourceCalibration",{{"light",RecipeLight(s.lighting.source)},{"revision",s.lighting.sourceRevision},{"manual",s.lighting.manualSource},{"fitCacheValid",s.lighting.cacheValid}}},
         {"target",RecipeLight(s.lighting.target)},{"targetGlobalGain",s.lighting.targetGlobalGain},{"response",response},{"protectedRegions",regions},
         {"displayExposure",s.display.exposure},{"confidenceOverlay",s.display.lowConfidence},{"confidenceThreshold",s.display.confidenceThreshold},
         {"imageFog",{{"version",1},{"sourceAdditionalDensity",0},{"enabled",s.fog.enabled},{"density",s.fog.density},{"airlightLinear",s.fog.airlight},{"allowRelativeScale",s.fog.allowRelativeScale}}}};
+    if(!s.pointLights.empty()){state["imagePointLights"]=Json::array();for(const auto& light:s.pointLights)state["imagePointLights"].push_back({
+        {"id",light.id},{"position",light.position},{"color",light.color},{"intensity",light.intensity},{"range",light.range},{"enabled",light.enabled}});}
+    return state;
 }
 void ApplyRecipeState(RelightingSession& s,const package::Json& j){
     const auto& schema=RecipeSchema();package::Validate(j,schema.at("$defs").at("state"),"recipe.state",schema);
     Require(s.CanDisplayImage(),"source anchor unavailable");auto next=s;
+    next.pointLights.clear();next.pointEdit={};std::set<uint32_t> pointIds;
+    if(j.contains("imagePointLights"))for(const auto& item:j.at("imagePointLights")){
+        ImagePointLight light;light.id=item.at("id");light.position=item.at("position").get<std::array<float,3>>();light.color=item.at("color").get<std::array<float,3>>();
+        light.intensity=item.at("intensity");light.range=item.at("range");light.enabled=item.at("enabled");
+        Require(light.Valid()&&pointIds.insert(light.id).second,"invalid/duplicate source-camera point light");next.pointLights.push_back(light);
+    }
+    if(!next.pointLights.empty()){
+        Require(next.CanEditPointLights(),"point lights require source camera, position, geometry normal, validity and lighting data");
+        next.pointEdit.selected=0;
+    }
     // Old recipes predate additional atmosphere. Missing fog means OFF, not inherited UI memory.
     next.fog={};if(j.contains("imageFog")){const auto& fog=j.at("imageFog");next.fog.enabled=fog.at("enabled");next.fog.density=fog.at("density");
         next.fog.airlight=fog.at("airlightLinear").get<std::array<float,3>>();next.fog.allowRelativeScale=fog.at("allowRelativeScale");}
@@ -84,7 +97,8 @@ void SaveRecipe(const std::filesystem::path& input,const RelightingSession& s,co
     const auto state=RecipeState(s);RelightingSession check;check.Publish(s.Source());ApplyRecipeState(check,state);
     const auto identity=Identity(*s.Source());const auto verified=ScenePackageLoader{}.Load(s.Source()->packageRoot);
     Require(verified.observation&&Identity(*verified.observation)==identity,"package changed since this session was loaded");
-    Json j={{"version",2},{"rendererRevision","image-relighting-33-v2"},{"parameterContract","bounded-response-fog-v2"},
+    const bool points=!s.pointLights.empty();
+    Json j={{"version",points?3:2},{"rendererRevision",points?"image-point-lights-v3":"image-relighting-33-v2"},{"parameterContract",points?"bounded-response-points-v3":"bounded-response-fog-v2"},
         {"sourcePackage",PathUtf8(std::filesystem::relative(s.Source()->packageRoot,path.parent_path()).generic_wstring())},
         {"identity",identity},{"state",state},{"importedMask",nullptr}};
     Relative(j["sourcePackage"].get<std::string>());

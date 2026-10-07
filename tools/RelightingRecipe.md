@@ -34,3 +34,11 @@ Verification: `tools/Validate-Recipe.ps1`, `tools/reconstruction/verify_recipe.p
 ## Optional 33 compatibility update
 
 New saves use Recipe v2 (`image-relighting-33-v2`, `bounded-response-fog-v2`) with independent `state.imageFog`. Old v1 files remain readable and reset fog to OFF. V2 is deliberately rejected by pre-33 executables; the shared strict schema enforces the revision combination. Atomic save/load, source identity, relative paths and ScenePackage v1 are unchanged. Additional native export buffers are `fog-distance.dds` and `pre-fog.dds`; see [ImageFog](ImageFog.md) for units, linear composition and limits. The original v1 design above records the preceding stage.
+
+## Manual point lights compatibility update
+
+Recipes with image point lights use v3 (`image-point-lights-v3`, `bounded-response-points-v3`). `state.imagePointLights` contains at most four records: unique positive `id`, `position` (LH source-camera XYZ, Z >= 0.01), linear RGB `color` in [0,1], relative `intensity` in [0,10000], finite `range` in [0.01,10000], and `enabled`. Coordinates are bounded to +/-100000 in point-map units, which are not necessarily metres. A point position is independent of the editable 3D camera and Scene lights.
+
+The source image and source lighting are immutable during point editing. Only calculated new diffuse shading includes these lights. The existing ratio/confidence/protection composition remains active; point lights do not cast new shadows or add image specular. Target global gain also scales point intensity. Reset directional/environment lighting leaves point records intact; use the explicit point clear/delete controls. Recipe export uses the same point state as the UI.
+
+V1/v2 still load and clear previously held point lights. Saves without point records continue to use v2. Nonempty point lists cannot be labelled v1/v2; unknown fields, invalid bounds and duplicate IDs are rejected before committing a candidate. Older executables reject v3. Existing atomic publication, hash checks and relative package paths are reused. 3D point edits remain session-only. Directional-only inverse optimization and neural refinement explicitly reject point-light recipes rather than treating the extra illumination as their directional guidance.

@@ -5,6 +5,7 @@
 #include "ScenePackage/ImageEditState.h"
 #include "ScenePackage/ReferenceAnalysis.h"
 #include "ScenePackage/ImageFog.h"
+#include "ScenePackage/ImagePointLight.h"
 #include <algorithm>
 #include <stdexcept>
 namespace isr {
@@ -21,13 +22,19 @@ class RelightingSession {
 public:
     WorkMode Mode()const{return mode_;}
     bool CanDisplayImage()const{return source_&&source_->CanDisplayImage();}
-    bool SetMode(WorkMode mode){if(mode==WorkMode::ImageRelighting&&!CanDisplayImage())return false;mode_=mode;return true;}
+    bool CanEditPointLights()const{
+        if(!CanDisplayImage()||!lighting.available||!source_->analysisMaps)return false;
+        const auto& maps=*source_->analysisMaps;
+        return maps.maps[1].image&&maps.maps[3].image&&maps.maps[4].image&&maps.metadata.contains("camera")&&maps.metadata["camera"].contains("intrinsicsNormalized");
+    }
+    bool SetMode(WorkMode mode){if(mode==WorkMode::ImageRelighting&&!CanDisplayImage())return false;if(mode_!=mode)pointEdit.Cancel();mode_=mode;return true;}
     const std::shared_ptr<const SourceObservation>& Source()const{return source_;}
     // Only call at a successful GPU document commit. A failed/cancelled load never reaches this.
     void Publish(std::shared_ptr<const SourceObservation> source)noexcept{
         source_=std::move(source);++revision_;
         lighting.Publish(source_?source_->lighting.get():nullptr);
         relighting={};fog={};
+        pointLights.clear();pointEdit={};
         display={};protection={};
         reference={};
         if(!CanDisplayImage())mode_=WorkMode::Scene3D;
@@ -38,6 +45,8 @@ public:
     LightingSession lighting;
     RelightingParameters relighting;
     ImageFogParameters fog;
+    std::vector<ImagePointLight> pointLights;
+    PointLightInteraction pointEdit;
     ImageDisplayState display;
     RegionProtectionEdit protection;
     ReferenceSession reference;

@@ -1,6 +1,7 @@
 #pragma once
 #include <DirectXMath.h>
 #include "Scene/Material.h"
+#include "Scene/Light.h"
 namespace isr {
 struct UvConstants { DirectX::XMFLOAT4 offsetScale,rotationSet; };
 struct ObjectConstants {
@@ -9,7 +10,7 @@ struct ObjectConstants {
     UvConstants uv[MaterialTextureCount];
 };
 static_assert(sizeof(ObjectConstants)==464);
-inline constexpr unsigned MaxLights=8;
+inline constexpr unsigned MaxLights=MaxSceneLights;
 struct LightConstants { DirectX::XMFLOAT4 positionType,directionRange,colorIntensity; };
 struct FrameConstants {
     DirectX::XMFLOAT4 cameraMode,ambientCount,nearFar;

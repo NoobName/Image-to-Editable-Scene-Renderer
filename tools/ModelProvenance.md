@@ -38,3 +38,32 @@ the synthetic set or provide rights-cleared photos yourself. Do not publish the 
 generated directory on the assumption that the renderer's code terms cover its photos.
 
 Offline commands, visual sequence and quality matrix are in [CoreDemo.md](CoreDemo.md).
+
+## Optional stage 34 research
+
+Rechecked 2026-10-07 against official implementations, rather than assuming a text-to-image
+model accepts the renderer's guidance. Only PIXLRelight was downloaded and actually run.
+
+| Candidate | Inspected revision | Suitability / decision |
+|---|---|---|
+| [PIXLRelight](https://github.com/mlfarinha/pixlrelight) | code `f8cb2dba4d08b3dfcd392cf9b2946a11f1f48c23`, [weights](https://huggingface.co/mlfarinha/pixlrelight/tree/5def370459c15ee36c524068bb8338b3f6c6d6c0) `5def370459c15ee36c524068bb8338b3f6c6d6c0` | Source RGB + target intrinsic A/S/R; real optional adapter tested at 256 on 8 GB GPU. The physics export supplies target RGB. |
+| [IC-Light](https://github.com/lllyasviel/IC-Light) | `bcf3f29ca85be8a4686215f477b546f5030be8b7` | Foreground+text/background; selected light preference is an initial latent ramp, not our geometric guidance. Not installed/run. |
+| [DiLightNet](https://github.com/iamNCJ/DiLightNet) | `ca749e31745f5902c1266a89249374455172559c` | Source/mask/diffuse/three-specular roughness hints require additional radiance passes and a different generation pipeline. Not installed/run. |
+| [PI-Light](https://github.com/ZhexinLiang/PI-Light) | `4e918eef3c0d131a9f8f809bd3e5528bac1e0ba5` | Investigated official release status; code still announced as forthcoming in inspected README. No claimed runnable adapter. |
+
+PIXL weights/config are **CC BY-NC 4.0**; root source is MIT, with inherited per-file
+DINOv3/VGGT/Marigold notices. Preserve those notices and examine their terms separately
+([DINOv3 license](https://github.com/facebookresearch/dinov3/blob/main/LICENSE.md)).
+Do not infer a commercial grant from the top-level MIT file. Its reused Marigold checkpoint
+retains the separate CreativeML Open RAIL++-M terms above. Input photograph rights are unchanged.
+
+PIXL `model.safetensors` is 2,563,499,816 bytes, SHA256
+`69c2bd11c2f272754f7080bc33e4b049fd334ea5d596df0c475f51c93699710e`;
+config SHA256 `a3ef2cada8a223aee15b2e85d6627980962ea5446242d0d8ec24791ec2e21021`.
+The adapter verifies both plus vendored source hashes. The [official paper](https://arxiv.org/abs/2605.18735)
+and [model card](https://huggingface.co/mlfarinha/pixlrelight) describe the method and limits;
+their model-only speed is not our measured full process/decomposition/export latency.
+Local actual environment is Python 3.13 / Torch 2.8.0+cu129 / Diffusers 0.35.2 / NumPy 2.5.3,
+different from the upstream Python3.11/NumPy<2 recipe; this exact environment was tested,
+not advertised as universal compatibility. All source/weights/caches remain ignored.
+See [NeuralRefinement](NeuralRefinement.md) for opt-in setup, boundaries and replay.

@@ -1,12 +1,15 @@
 #include "Fullscreen.hlsli"
 #include "ColorManagement.hlsli"
+#include "PointLight.hlsli"
 Texture2D<float4> geometryNormal:register(t0);
 Texture2D<uint> geometryValidity:register(t1);
 Texture2D<float4> oldShading:register(t2);
 Texture2D<float4> newShading:register(t3);
+Texture2D<float4> geometryPosition:register(t4);
 cbuffer ImageShadingConstants:register(b0){
     float4 imageRect;uint2 analysisSize;uint selected;uint available;
     float4 travel;float4 directRGB;float4 ambientRGB;
+    float4 pointPositionRange[4];float4 pointColorIntensity[4]; // travel.w = target point count
 };
 bool NormalAt(uint2 p,out float3 n){
     n=geometryNormal.Load(int3(p,0)).xyz;float q=dot(n,n);
@@ -17,7 +20,16 @@ float LightDot(float3 n){return dot(n,-travel.xyz*rsqrt(max(dot(travel.xyz,trave
 float4 PSEvaluate(float4 position:SV_Position):SV_Target{
     float3 n;if(!available||!NormalAt(uint2(position.xy),n))return 0;
     // Unit-reflectance response in the fitted relative gauge. pi is already absorbed in the coefficients.
-    return float4(max(LightDot(n),0)*directRGB.xyz+ambientRGB.xyz,1);
+    float3 response=max(LightDot(n),0)*directRGB.xyz+ambientRGB.xyz;
+    if(travel.w>0){
+        float3 receiver=geometryPosition.Load(int3(uint2(position.xy),0)).xyz;
+        if(all(isfinite(receiver))&&receiver.z>0)for(uint i=0;i<min(uint(travel.w),4);++i){
+            float3 delta=pointPositionRange[i].xyz-receiver;float d2=dot(delta,delta);
+            float cosine=max(dot(n,delta*rsqrt(max(d2,1e-12))),0);
+            response+=cosine*PointAttenuation(d2,pointPositionRange[i].w)*pointColorIntensity[i].rgb*pointColorIntensity[i].w;
+        }
+    }
+    return float4(response,1);
 }
 float4 PSPreview(float4 position:SV_Position):SV_Target{
     float2 uv=(position.xy-imageRect.xy)/imageRect.zw;

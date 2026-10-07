@@ -4,6 +4,7 @@ param(
     [ValidateSet('clear','triangle','scene')][string]$Demo = 'scene',
     [ValidateRange(1,1000000)][int]$Frames = 120,
     [ValidatePattern('^[a-zA-Z0-9][a-zA-Z0-9_.-]*$')][string]$LogName = 'smoke',
+    [ValidateSet('generated','build')][string]$OutputDirectory = 'generated',
     [switch]$Interactive,
     [switch]$Warp,
     [switch]$Capture,
@@ -26,6 +27,11 @@ param(
     [string]$ExportImage,
     [string]$RecipeReload,
     [switch]$RecipeCancel,
+    [switch]$RefinementRun,
+    [ValidateRange(0,1)][float]$RefinementStrength=0.15,
+    [int]$RefinementCancelFrame=0,
+    [int]$RefinementEditFrame=0,
+    [string]$RefinementPython,
     [switch]$ReplaceRecipe,
     [string]$ReferenceInput,
     [string]$ReferenceProposal,
@@ -80,9 +86,9 @@ if ($Interactive -and $Capture) { throw 'Capture requires a finite smoke run; om
 if ($Model -and $Package) { throw 'Use either -Model or -Package.' }
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $executable = Join-Path $projectRoot "$BuildDirectory/$Configuration/ImageSceneRenderer.exe"
-$arguments = "--log generated/$LogName.log"
+$arguments = "--log $OutputDirectory/$LogName.log"
 $arguments += " --demo $Demo"
-if($Profile){$arguments += " --profile generated/$LogName.profile.json"}
+if($Profile){$arguments += " --profile $OutputDirectory/$LogName.profile.json"}
 $arguments += " --work-mode $WorkMode --image-view $ImageView --window-size $WindowSize"
 if($FixedSize){$arguments += ' --fixed-size'}
 if($PSBoundParameters.ContainsKey('ImageFogDensity')){$arguments += ' --image-fog-density '+$ImageFogDensity.ToString([System.Globalization.CultureInfo]::InvariantCulture)}
@@ -125,7 +131,7 @@ if ($Environment) {
 }
 if (!$Interactive) { $arguments += " --frames $Frames --smoke" }
 if ($Warp) { $arguments += ' --warp' }
-if ($Capture) { $arguments += " --capture generated/$LogName.bmp" }
+if ($Capture) { $arguments += " --capture $OutputDirectory/$LogName.bmp" }
 if ($ReverseOrder) { $arguments += ' --reverse-order' }
 if ($CameraSmoke) { $arguments += ' --camera-smoke' }
 if ($Model) {
@@ -154,13 +160,18 @@ if($ApplyReference){$arguments += ' --apply-reference'}
 if($ResetReference){$arguments += ' --reset-reference'}
 if($ReferenceDummy){$arguments += ' --reference-dummy'}
 if($ReferenceCancelFrame -gt 0){$arguments += " --reference-cancel-frame $ReferenceCancelFrame"}
+if($RefinementRun){$arguments += " --refinement-run --refinement-strength $RefinementStrength"}
+if($RefinementCancelFrame -gt 0){$arguments += " --refinement-cancel-frame $RefinementCancelFrame"}
+if($RefinementEditFrame -gt 0){$arguments += " --refinement-edit-frame $RefinementEditFrame"}
+if($RefinementPython){$arguments += ' --reconstruction-python "'+$RefinementPython+'"'}
 if($OptimizeReference){if($OptimizeReference.Contains('"')){throw 'Invalid optimization path'};$arguments += ' --optimize-reference "'+$OptimizeReference+'" --optimization-iterations '+$OptimizationIterations}
 if($OptimizationRegistered){$arguments += ' --optimization-registered'}
 if($OptimizationEditFrame -gt 0){$arguments += " --optimization-edit-frame $OptimizationEditFrame"}
 $process = Start-Process -FilePath $executable -WorkingDirectory $projectRoot -ArgumentList $arguments -WindowStyle $windowStyle -PassThru
 if ($Interactive) { Write-Output "Started PID=$($process.Id)"; exit 0 }
-if (!$process.WaitForExit(60000)) { throw 'Smoke process did not finish within 60 seconds. Inspect the application.' }
-$logText = Get-Content (Join-Path $projectRoot "generated/$LogName.log") -Raw
+$timeoutMs=if($RefinementRun){180000}else{60000}
+if (!$process.WaitForExit($timeoutMs)) { throw "Smoke process did not finish within $($timeoutMs/1000) seconds. Inspect the application." }
+$logText = Get-Content (Join-Path $projectRoot "$OutputDirectory/$LogName.log") -Raw
 Write-Output $logText
 if ($process.ExitCode -ne 0) { throw "Application failed: $($process.ExitCode)" }
 if ($Configuration -eq 'Debug' -and $logText -notmatch 'Validation summary: errors=0 warnings=0') {

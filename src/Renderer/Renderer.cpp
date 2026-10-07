@@ -189,7 +189,7 @@ void Renderer::Render(const Scene& scene, const RenderSettings& settings, bool r
         auto* relighting=activeScene_?activeScene_->imageRelighting.get():imageRelighting_.get();
         auto* composite=activeScene_?activeScene_->imageComposite.get():imageComposite_.get();
         const auto previousUpdates=composite->Updates();imageTimer_->Begin(commandList_.Get(),index);
-        relighting->Update(commandList_.Get(),session_.lighting);
+        relighting->Update(commandList_.Get(),session_.lighting,session_.pointLights);
         composite->EditProtection(context_.Device(),commandList_.Get(),frame,*session_.Source(),session_.protection);
         composite->Update(commandList_.Get(),session_.relighting,session_.lighting.cacheValid,&frame,session_.fog);
         imageTimer_->End(commandList_.Get(),index,previousUpdates!=composite->Updates());

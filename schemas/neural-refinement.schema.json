@@ -1,0 +1,19 @@
+{
+  "type":"object", "additionalProperties":false,
+  "required":["version","status","inputs","parameters","modelRevision","codeRevision","adapterRevision","cacheKey","cacheHit","provenance","metrics","physicsRecipe","physicsExport","protectedMask","encoding","modelChangesAreNotGeometryMeasurements","defaultEnabled","outputHashes","originalRecipeHash"],
+  "properties":{
+    "version":{"const":1}, "status":{"enum":["candidate","bypassed","unavailable","fallback"]},
+    "inputs":{"type":"object"},
+    "parameters":{"type":"object","additionalProperties":false,"required":["strength","seed","max_side"],"properties":{
+      "strength":{"type":"number","minimum":0,"maximum":1},"seed":{"type":"integer","minimum":0,"maximum":4294967295},"max_side":{"enum":[256,512]}}},
+    "modelRevision":{"const":"5def370459c15ee36c524068bb8338b3f6c6d6c0"},
+    "codeRevision":{"const":"f8cb2dba4d08b3dfcd392cf9b2946a11f1f48c23"},
+    "adapterRevision":{"const":"pixl-physics-refinement-34-v2"},
+    "cacheKey":{"type":"string","minLength":64},"cacheHit":{"type":"boolean"},
+    "provenance":{"type":"object"},"metrics":{"type":"object"},
+    "physicsRecipe":{"const":"physics-recipe.json"},"physicsExport":{"type":"string","minLength":1},
+    "protectedMask":{"oneOf":[{"const":null},{"const":"explicit-protection.png"}]},
+    "encoding":{"type":"string","minLength":1},"modelChangesAreNotGeometryMeasurements":{"const":true},
+    "defaultEnabled":{"const":false},"outputHashes":{"type":"object"},"originalRecipeHash":{"type":"string","minLength":64}
+  }
+}

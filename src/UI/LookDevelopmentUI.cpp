@@ -5,12 +5,47 @@
 #include <backends/imgui_impl_win32.h>
 #include <backends/imgui_impl_dx12.h>
 #include <algorithm>
+#include <filesystem>
+#include <imgui_internal.h>
 namespace isr {
+namespace {
+void ConfigureChineseUI(){
+    auto& io=ImGui::GetIO();
+    // Load a system font rather than redistributing Windows font files. Keep the
+    // ranges alive for the atlas, including symbols used by numerical panels.
+    static ImVector<ImWchar> ranges;
+    if(ranges.empty()){
+        ImFontGlyphRangesBuilder builder;builder.AddRanges(io.Fonts->GetGlyphRangesChineseFull());
+        builder.AddText("ε→");builder.BuildRanges(&ranges);
+    }
+    wchar_t windows[MAX_PATH]{};
+    const auto length=GetWindowsDirectoryW(windows,MAX_PATH);
+    if(!length||length>=MAX_PATH)throw std::runtime_error("无法定位 Windows 中文字体目录");
+    ImFontConfig config;config.OversampleH=1;config.OversampleV=1;
+    for(const auto* name:{L"msyh.ttc",L"simhei.ttf",L"simsun.ttc"}){
+        const auto path=std::filesystem::path(windows)/L"Fonts"/name;
+        if(!std::filesystem::is_regular_file(path))continue;
+        const auto utf8=path.u8string();
+        if(auto* font=io.Fonts->AddFontFromFileTTF(reinterpret_cast<const char*>(utf8.c_str()),16.f,&config,ranges.Data)){io.FontDefault=font;break;}
+    }
+    if(!io.FontDefault)throw std::runtime_error("未找到可用的中文字体，请安装 Windows 简体中文字体");
+    static const ImGuiLocEntry entries[]{
+        {ImGuiLocKey_VersionStr,"Dear ImGui 版本 " IMGUI_VERSION},{ImGuiLocKey_TableSizeOne,"调整列宽###SizeOne"},
+        {ImGuiLocKey_TableSizeAllFit,"自动适应所有列###SizeAll"},{ImGuiLocKey_TableSizeAllDefault,"重置所有列宽###SizeAll"},
+        {ImGuiLocKey_TableReset,"重置###Reset"},{ImGuiLocKey_TableResetOrder,"重置顺序###ResetOrder"},
+        {ImGuiLocKey_TableResetVisibility,"重置可见性###ResetVisibility"},
+        {ImGuiLocKey_WindowingMainMenuBar,"主菜单"},{ImGuiLocKey_WindowingPopup,"弹出窗口"},{ImGuiLocKey_WindowingUntitled,"未命名"},
+        {ImGuiLocKey_OpenLink_s,"打开链接：%s"},{ImGuiLocKey_CopyLink,"复制链接###CopyLink"}
+    };
+    ImGui::LocalizeRegisterEntries(entries,IM_ARRAYSIZE(entries));
+}
+}
 LookDevelopmentUI::LookDevelopmentUI(HWND window,DeviceContext& context,unsigned frames)
     :context_(context),heap_(context.Device(),D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,64,true){
     try{
         IMGUI_CHECKVERSION();if(!ImGui::CreateContext())throw std::runtime_error("ImGui context creation failed");created_=true;
         ImGui::GetIO().IniFilename=nullptr;ImGui::GetIO().ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard;
+        ConfigureChineseUI();
         ImGui::StyleColorsDark();auto& style=ImGui::GetStyle();style.WindowRounding=7;style.FrameRounding=4;
         style.Colors[ImGuiCol_WindowBg]=ImVec4(0.055f,0.075f,0.10f,0.96f);
         if(!(win32_=ImGui_ImplWin32_Init(window)))throw std::runtime_error("ImGui Win32 init failed");

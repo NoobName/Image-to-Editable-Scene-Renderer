@@ -12,7 +12,7 @@ Window::Window(HINSTANCE instance, uint32_t width, uint32_t height)
     if (!RegisterClassExW(&wc)) Check(HRESULT_FROM_WIN32(GetLastError()));
     RECT rect{0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
     CheckWin32(AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0));
-    window_ = CreateWindowExW(0, ClassName, L"Image-to-Editable-Scene Renderer", WS_OVERLAPPEDWINDOW,
+    window_ = CreateWindowExW(0, ClassName, L"图像到可编辑场景渲染器", WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, rect.right - rect.left, rect.bottom - rect.top,
         nullptr, nullptr, instance, this);
     if (!window_) { const auto error = GetLastError(); UnregisterClassW(ClassName, instance); Check(HRESULT_FROM_WIN32(error)); }

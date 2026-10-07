@@ -4,8 +4,8 @@
 namespace isr {
 enum class RenderMode { Final, Albedo, Normal, Roughness, Metallic, Depth, Wireframe, OriginalImage, EstimatedAlbedo, EstimatedNormal, EstimatedRoughness };
 inline constexpr int RenderModeCount=11;
-inline constexpr const char* RenderModeNames[]={"Final","Albedo","Normal","Roughness","Metallic","Depth","Wireframe",
-    "Original Image on Geometry","Estimated Albedo","Estimated Normal","Estimated Roughness"};
+inline constexpr const char* RenderModeNames[]={"最终效果","反照率","法线","粗糙度","金属度","深度","线框",
+    "原图（投影在几何上）","估计反照率","估计法线","估计粗糙度"};
 static_assert(sizeof(RenderModeNames)/sizeof(RenderModeNames[0])==RenderModeCount);
 struct RenderSettings {
     RenderMode mode=RenderMode::Final;

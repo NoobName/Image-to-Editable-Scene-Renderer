@@ -12,13 +12,13 @@
   ],
   "properties": {
     "version": {
-      "enum": [1, 2]
+      "enum": [1, 2, 3]
     },
     "rendererRevision": {
-      "enum": ["image-relighting-29-v1", "image-relighting-33-v2"]
+      "enum": ["image-relighting-29-v1", "image-relighting-33-v2", "image-point-lights-v3"]
     },
     "parameterContract": {
-      "enum": ["bounded-response-v1", "bounded-response-fog-v2"]
+      "enum": ["bounded-response-v1", "bounded-response-fog-v2", "bounded-response-points-v3"]
     },
     "sourcePackage": {
       "type": "string",
@@ -81,11 +81,25 @@
   },
   "oneOf": [
     {"properties": {"version": {"const": 1}, "rendererRevision": {"const": "image-relighting-29-v1"}, "parameterContract": {"const": "bounded-response-v1"},
-      "state": {"properties": {"imageFog": {"const": null}}}}},
+      "state": {"properties": {"imageFog": {"const": null}, "imagePointLights": {"maxItems": 0}}}}},
     {"properties": {"version": {"const": 2}, "rendererRevision": {"const": "image-relighting-33-v2"}, "parameterContract": {"const": "bounded-response-fog-v2"},
-      "state": {"required": ["imageFog"]}}}
+      "state": {"required": ["imageFog"], "properties": {"imagePointLights": {"maxItems": 0}}}}},
+    {"properties": {"version": {"const": 3}, "rendererRevision": {"const": "image-point-lights-v3"}, "parameterContract": {"const": "bounded-response-points-v3"},
+      "state": {"required": ["imageFog", "imagePointLights"]}}}
   ],
   "$defs": {
+    "pointLight": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "position", "color", "intensity", "range", "enabled"],
+      "properties": {
+        "id": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "position": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": -100000, "maximum": 100000}},
+        "color": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": 0, "maximum": 1}},
+        "intensity": {"type": "number", "minimum": 0, "maximum": 10000},
+        "range": {"type": "number", "minimum": 0.01, "maximum": 10000},
+        "enabled": {"type": "boolean"}
+      }
+    },
     "imageFog": {
       "type": "object", "additionalProperties": false,
       "required": ["version", "sourceAdditionalDensity", "enabled", "density", "airlightLinear", "allowRelativeScale"],
@@ -163,6 +177,7 @@
       ],
       "properties": {
         "imageFog": {"$ref": "#/$defs/imageFog"},
+        "imagePointLights": {"type": "array", "maxItems": 4, "items": {"$ref": "#/$defs/pointLight"}},
         "sourceCalibration": {
           "type": "object",
           "additionalProperties": false,

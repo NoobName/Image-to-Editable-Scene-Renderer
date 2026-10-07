@@ -6,7 +6,7 @@
 #include <string_view>
 namespace isr {
 enum class ToneMapping { None, Reinhard, ACES };
-inline constexpr const char* ToneMappingNames[]={"None","Reinhard","ACES"};
+inline constexpr const char* ToneMappingNames[]={"无","Reinhard","ACES"};
 
 // Renderer-independent, authoritative look state. UI, CLI and a future matcher
 // edit this value; GPU constants are transient projections of it, never owners.

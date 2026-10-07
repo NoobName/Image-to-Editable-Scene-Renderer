@@ -9,7 +9,7 @@ The build is offline after checkout; these sources are vendored with their licen
 | Dear ImGui | v1.92.9b | https://github.com/ocornut/imgui/tree/v1.92.9b — MIT (`imgui/LICENSE.txt`) |
 | nlohmann/json | v3.12.0 | https://github.com/nlohmann/json/tree/v3.12.0 — MIT (`nlohmann/LICENSE.MIT`) |
 
-Only Win32 / DX12 ImGui backends are built. The DX12 backend has a small local integration patch: ignored HRESULTs and debug-only HRESULT assertions are checked in Release too; fence event/wait failures are reported. All other dependency sources are unmodified. Header hashes below refer to the unchanged upstream headers.
+Only Win32 / DX12 ImGui backends are built. The DX12 backend has a small local integration patch: ignored HRESULTs and debug-only HRESULT assertions are checked in Release too; fence event/wait failures are reported. The color picker's built-in visible text in `imgui_widgets.cpp` is translated into Chinese; other localization entries are registered by the application. All other dependency sources are unmodified. Header hashes below refer to the unchanged upstream headers.
 SHA256: cgltf.h `E378A21C084BF1F288BB799DE827BB26906EFB024255F1ECF1705EA13F11C6EC`;
 mikktspace.c `DE87E74107DF766CE68108801262BD8D53899414236B59810509A8FC2A51E288`;
 imgui.h `0D8DB1045DB01D908853ADFD26AE07C5BC5AB4789D4515F6EA34234A69ADE0CA`.

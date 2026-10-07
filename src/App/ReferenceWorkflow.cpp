@@ -13,6 +13,7 @@ void ReferenceWorkflow::Tick(Renderer& renderer,const ReconstructionOptions& con
         if(actions.request!=ReferenceAction::None){const auto request=std::exchange(actions.request,ReferenceAction::None);
             if(actions.busy||otherBusy)throw std::runtime_error("Wait for the active loading operation");
             if(!renderer.Session().CanDisplayImage())throw std::runtime_error("Load a source package with an anchor first");
+            if(request==ReferenceAction::Optimize&&!renderer.Session().pointLights.empty())throw std::runtime_error("请先清空图像点光源；当前自动优化只评估方向光与环境光。");
             actions.cancel=false;stop_=std::stop_source{};const auto token=stop_.get_token();sceneRevision_=renderer.Session().Revision();
             const auto input=actions.input;const auto source=renderer.Session().Source();const auto baseline=renderer.Session().lighting.source;
             const auto revision=renderer.Session().lighting.sourceRevision;const auto relation=actions.relation;const bool useConfigured=actions.useConfiguredBackends,fallback=actions.allowFallback;

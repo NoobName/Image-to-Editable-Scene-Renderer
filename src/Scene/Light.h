@@ -2,6 +2,7 @@
 #include <DirectXMath.h>
 namespace isr {
 enum class LightType { Directional, Point };
+inline constexpr unsigned MaxSceneLights=8;
 struct Light {
     LightType type = LightType::Directional;
     DirectX::XMFLOAT3 direction{0.4f,-0.8f,0.5f}; // Direction in which light travels.
@@ -9,5 +10,6 @@ struct Light {
     DirectX::XMFLOAT3 color{1,1,1};
     float intensity = 3.0f;
     float range = 10;
+    bool enabled = true;
 };
 }

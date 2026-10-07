@@ -13,6 +13,7 @@
 #include "App/ImageModeOptions.h"
 #include "App/RecipeWorkflow.h"
 #include "App/ReferenceWorkflow.h"
+#include "App/RefinementWorkflow.h"
 #include <chrono>
 #include <string>
 #include <algorithm>
@@ -26,11 +27,13 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
     EditorSmoke editorSmoke;
     ImageModeOptions imageOptions;
     RecipeWorkflow recipeWorkflow;
+    RefinementWorkflow refinementWorkflow;
     ReferenceWorkflow referenceWorkflow;
     unsigned referenceCancelFrame=0,referenceRepeat=1,optimizationEditFrame=0;ReferenceAction repeatReferenceAction=ReferenceAction::None;
     std::filesystem::path recipePath,saveRecipePath,exportImagePath,recipeReloadPath;
     std::filesystem::path profilePath;
     bool replaceRecipe=false,recipeCancel=false;
+    bool refinementRun=false;unsigned refinementCancelFrame=0,refinementEditFrame=0;
     std::optional<RelightingRecipe> startupRecipe;
     unsigned frameLimit = 0; Demo demo = Demo::Scene; std::filesystem::path capture,model,packagePath;std::string objectSmoke;
     wchar_t executable[32768]{};
@@ -60,6 +63,11 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         if(argument==L"--export-image"&&i+1<argc){exportImagePath=argv[++i];continue;}
         if(argument==L"--recipe-reload"&&i+1<argc){recipeReloadPath=argv[++i];continue;}
         if(argument==L"--recipe-cancel"){recipeCancel=true;continue;}
+        if(argument==L"--refinement-run"){refinementRun=true;continue;}
+        if(argument==L"--refinement-strength"&&i+1<argc){size_t used=0;const std::wstring value=argv[++i];recipeWorkflow.actions.refinementStrength=std::stof(value,&used);
+            if(used!=value.size()||!std::isfinite(recipeWorkflow.actions.refinementStrength)||recipeWorkflow.actions.refinementStrength<0||recipeWorkflow.actions.refinementStrength>1)throw std::invalid_argument("Refinement strength must be finite in [0,1]");continue;}
+        if(argument==L"--refinement-cancel-frame"&&i+1<argc){refinementCancelFrame=std::stoul(argv[++i]);continue;}
+        if(argument==L"--refinement-edit-frame"&&i+1<argc){refinementEditFrame=std::stoul(argv[++i]);continue;}
         if(ParseLookOption(argument,i,argc,argv,settings.look))continue;
         if(ParseLightingOption(argument,i,argc,argv,settings,environmentSmoke,lightingTest)){if(argument==L"--env")explicitEnvironment=true;continue;}
         if (argument == L"--warp") warp = true;
@@ -180,6 +188,7 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         ~MessageHandlerLifetime(){window.SetMessageHandler({});}
     } messageHandlerLifetime{window}; // Also detach before Renderer destruction during exception unwinding.
     Log("Window created; demo=" + std::to_string(static_cast<int>(demo)));
+    if(refinementRun)Log("Refinement finite-frame limit="+std::to_string(frameLimit));
     unsigned frames = 0;
     unsigned reconstructionEndFrame=0;const auto reconstructionStart=std::chrono::steady_clock::now();
     auto previousReconstructionState=ReconstructionState::Idle;
@@ -191,6 +200,10 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         reconstruction.Tick(renderer,scene,settings,controller);
         if(frames==10&&!recipeReloadPath.empty()){recipeWorkflow.actions.path=recipeReloadPath;recipeWorkflow.actions.request=RecipeAction::Open;}
         if(recipeCancel&&frames==11)recipeWorkflow.actions.cancel=true;
+        if(refinementRun&&frames==10){recipeWorkflow.actions.request=RecipeAction::Refine;recipeWorkflow.actions.focusRefinement=true;}
+        if(refinementCancelFrame&&frames==refinementCancelFrame)recipeWorkflow.actions.cancelRefinement=true;
+        if(refinementEditFrame&&frames==refinementEditFrame)renderer.Session().display.exposure=.25f;
+        refinementWorkflow.Tick(renderer,recipeWorkflow.actions,reconstruction.manager.options,reconstruction.manager.Status().Busy());
         recipeWorkflow.Tick(renderer,scene,settings,controller,reconstruction.manager.Status().Busy());
         if(referenceCancelFrame&&frames==referenceCancelFrame)referenceWorkflow.actions.cancel=true;
         if(optimizationEditFrame&&frames==optimizationEditFrame){renderer.Session().lighting.target.directIntensity=.123f;Log("Optimization concurrency test: user target changed to 0.123");}
@@ -244,6 +257,8 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         if(renderer.Session().Mode()==WorkMode::Scene3D)scene.camera.SetAspect(renderer.SceneAspect()); // Source projection is never resized.
         scene.UpdateWorldMatrices();
         auto endFrame=reconstructImage.empty()?frameLimit:reconstructionEndFrame;
+        if(recipeWorkflow.actions.refinementBusy){endFrame=0;if(frameLimit&&now-reconstructionStart>std::chrono::minutes(5))throw std::runtime_error("Refinement smoke timed out");}
+        else if(refinementRun&&frameLimit)endFrame=std::max(frameLimit,frames+1);
         if(imageOptions.Busy())endFrame=0;
         else if(imageOptions.smoke=="transaction"&&frameLimit)endFrame=std::max(frameLimit,frames+1);
         // A finite recipe load captures the committed document, not a frame from the old
@@ -253,7 +268,7 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         if(referenceWorkflow.actions.busy||referenceWorkflow.actions.request!=ReferenceAction::None){endFrame=0;if(frameLimit&&now-reconstructionStart>std::chrono::minutes(20))throw std::runtime_error("Reference smoke timed out");}
         else if(repeatReferenceAction!=ReferenceAction::None&&frameLimit)endFrame=std::max(frameLimit,frames+1);
         // Completion of one independent task must not override another task's pending fence/load.
-        if(recipeWorkflow.actions.busy||referenceWorkflow.actions.busy||referenceWorkflow.actions.request!=ReferenceAction::None||imageOptions.Busy()||reconstruction.manager.Status().Busy())endFrame=0;
+        if(recipeWorkflow.actions.refinementBusy||recipeWorkflow.actions.busy||referenceWorkflow.actions.busy||referenceWorkflow.actions.request!=ReferenceAction::None||imageOptions.Busy()||reconstruction.manager.Status().Busy())endFrame=0;
         const bool capturing=frameLimit&&endFrame&&frames+1==endFrame&&!capture.empty();
         renderer.Render(scene,settings,reverseOrder,capturing?capture:std::filesystem::path{}); ++frames;
         renderer.ProfileCpuFrame(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-now).count(),capturing);
@@ -271,6 +286,7 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
     renderer.Finish();
     if(!profilePath.empty())renderer.SaveProfile(profilePath);
     Log("Recipe workflow: "+recipeWorkflow.actions.status);
+    Log("Refinement workflow: "+recipeWorkflow.actions.refinementStatus);
     Log("Reference workflow: "+referenceWorkflow.actions.status);
     if(!saveRecipePath.empty())SaveRecipe(saveRecipePath,renderer.Session(),renderer.ImportedProtection(),replaceRecipe);
     if(!exportImagePath.empty())renderer.ExportImage(exportImagePath);
