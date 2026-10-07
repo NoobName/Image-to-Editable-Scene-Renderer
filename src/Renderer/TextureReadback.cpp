@@ -3,9 +3,12 @@
 #include <cstring>
 #include <cmath>
 namespace isr {
-TextureReadback::TextureReadback(ID3D12Device* device,ID3D12GraphicsCommandList* list,Texture& texture):before_(texture.State()){
+TextureReadback::TextureReadback(ID3D12Device* device,ID3D12GraphicsCommandList* list,Texture& texture,bool depthFloat):before_(texture.State()){
     const auto desc=texture.Resource()->GetDesc();layout_.width=UINT(desc.Width);layout_.height=desc.Height;layout_.format=static_cast<NumericFormat>(desc.Format);
-    if(desc.Format!=DXGI_FORMAT_R32_FLOAT&&desc.Format!=DXGI_FORMAT_R32G32B32A32_FLOAT&&desc.Format!=DXGI_FORMAT_R32_UINT)throw std::runtime_error("Numeric readback unsupported format");
+    // Only explicitly opted-in D32 depth storage may be interpreted as R32_FLOAT.
+    const bool depth=depthFloat&&desc.Format==DXGI_FORMAT_R32_TYPELESS&&(desc.Flags&D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+    if(depth)layout_.format=NumericFormat::Float;
+    if(!depth&&desc.Format!=DXGI_FORMAT_R32_FLOAT&&desc.Format!=DXGI_FORMAT_R32G32B32A32_FLOAT&&desc.Format!=DXGI_FORMAT_R32_UINT)throw std::runtime_error("Numeric readback unsupported format");
     device->GetCopyableFootprints(&desc,0,1,0,&footprint_,nullptr,nullptr,&bytes_);
     D3D12_HEAP_PROPERTIES heap{};heap.Type=D3D12_HEAP_TYPE_READBACK;D3D12_RESOURCE_DESC rd{};rd.Dimension=D3D12_RESOURCE_DIMENSION_BUFFER;rd.Width=bytes_;
     rd.Height=1;rd.DepthOrArraySize=1;rd.MipLevels=1;rd.SampleDesc.Count=1;rd.Layout=D3D12_TEXTURE_LAYOUT_ROW_MAJOR;

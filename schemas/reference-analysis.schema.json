@@ -1,0 +1,386 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "source",
+    "reference",
+    "proposal",
+    "fit",
+    "images",
+    "seconds",
+    "notes"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "anchorSha256",
+        "baseline",
+        "baselineRevision"
+      ],
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchorSha256": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseline": {
+          "$ref": "#/$defs/light"
+        },
+        "baselineRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "sourceSha256",
+        "sourceSize",
+        "analysisSize",
+        "sourceCamera",
+        "normalSpace",
+        "provenance"
+      ],
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceSha256": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceSize": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16384
+          }
+        },
+        "analysisSize": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16384
+          }
+        },
+        "sourceCamera": {
+          "type": "object"
+        },
+        "normalSpace": {
+          "const": "lh-camera"
+        },
+        "provenance": {
+          "type": "object"
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "confidence",
+        "canApply",
+        "directionSupported",
+        "relation",
+        "coordinateMapping",
+        "scaleRule",
+        "exposureEV",
+        "relativeExposureAvailable",
+        "reasons",
+        "unavailable",
+        "statistics"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/light"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "canApply": {
+          "type": "boolean"
+        },
+        "directionSupported": {
+          "type": "boolean"
+        },
+        "relation": {
+          "enum": [
+            "same-scene",
+            "different-content"
+          ]
+        },
+        "coordinateMapping": {
+          "const": "camera-relative-identity-not-shared-world"
+        },
+        "scaleRule": {
+          "const": "preserve-source-direct-plus-ambient-luminance; exposure-fixed"
+        },
+        "exposureEV": {
+          "const": 0
+        },
+        "relativeExposureAvailable": {
+          "const": false
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unavailable": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "statistics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "referenceToSourceScale",
+            "sourceEnergy",
+            "targetEnergy",
+            "directAmbientRatio",
+            "directionChangeDegrees"
+          ],
+          "properties": {
+            "referenceToSourceScale": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "sourceEnergy": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 128
+            },
+            "targetEnergy": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 128
+            },
+            "directAmbientRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000000
+            },
+            "directionChangeDegrees": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 180
+            }
+          }
+        }
+      }
+    },
+    "fit": {
+      "type": "object",
+      "required": [
+        "backend",
+        "confidence",
+        "identifiable",
+        "albedoSource",
+        "beforeRMSE",
+        "afterRMSE",
+        "validFraction"
+      ],
+      "properties": {
+        "backend": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "identifiable": {
+          "type": "boolean"
+        },
+        "albedoSource": {
+          "type": "string",
+          "minLength": 1
+        },
+        "beforeRMSE": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "afterRMSE": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000000
+        },
+        "validFraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "residual"
+      ],
+      "properties": {
+        "reference": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "size"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "size": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16384
+              }
+            }
+          }
+        },
+        "residual": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "size"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "size": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 16384
+              }
+            }
+          }
+        }
+      }
+    },
+    "seconds": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000000000
+    },
+    "notes": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "light": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "directColor",
+        "ambientColor",
+        "directIntensity",
+        "ambientIntensity"
+      ],
+      "properties": {
+        "direction": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          }
+        },
+        "directColor": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "ambientColor": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "directIntensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "ambientIntensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64
+        }
+      }
+    }
+  }
+}

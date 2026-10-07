@@ -9,6 +9,9 @@ class AsyncFileDialog {
 public:
     ~AsyncFileDialog();
     void Open(HWND owner,bool python=false);
+    void Recipe(HWND owner,bool save);
+    void Reference(HWND owner){Choose(owner,4);}
+    void Choose(HWND owner,int kind);
     bool Busy()const{return result_.valid();}
     std::optional<std::filesystem::path> Poll();
 private:

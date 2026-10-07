@@ -28,6 +28,17 @@ std::shared_ptr<const LightingData> LoadLightingData(const std::filesystem::path
         auto result=std::make_shared<LightingData>();auto& data=result->metadata;
         data=package::ReadJson(package::AssetPath(root,"lighting/lighting.json","lighting",{".json"}));
         package::Validate(data,schema,"$lighting",schema);Require(appearance.has_value(),"validated source anchor required");
+        const bool assisted=data["fit"]["backend"]=="intrinsic-assisted";
+        Require(assisted==data.contains("assistance"),"assistance/backend mismatch");
+        if(assisted){const auto& info=data["assistance"];const auto digest=info["intrinsicSha256"].get<std::string>();
+            if(!digest.empty()){const auto path=package::AssetPath(root,"intrinsic/intrinsic.json","intrinsic",{".json"});
+                Require(std::filesystem::file_size(path)<=1024*1024&&digest.size()==64&&package::Sha256(ReadAssetFile(path))==digest,"stale intrinsic fingerprint");}
+            else Require(info["reason"]=="missing-intrinsic","missing intrinsic provenance");
+            const bool selected=info["selected"];const std::string choice=selected?"candidate":"baseline";
+            Require(selected==(info["reason"]=="accepted")&&data["sourceLighting"]==info[choice+"Source"],"assistance selection mismatch");
+            for(const auto& item:info[choice+"Fit"].items())Require(data["fit"][item.key()]==item.value(),"assistance fit mismatch");
+            Parameters(info["baselineSource"]);Parameters(info["candidateSource"]);
+        }
         const auto& a=appearance->metadata;
         Require(data["sourceId"]==a["sourceId"]&&data["sourceSha256"]==a["sourceImage"]["sha256"]&&data["analysisSize"]==a["analysisImage"]["size"],"source identity/dimensions mismatch");
         const uint32_t w=data["analysisSize"][0],h=data["analysisSize"][1];const auto& fit=data["fit"];
@@ -68,7 +79,7 @@ std::shared_ptr<const LightingData> LoadLightingData(const std::filesystem::path
     }catch(const std::exception& e){throw std::runtime_error(std::string("Invalid optional lighting/lighting.json: ")+e.what());}
 }
 void LightingSession::Publish(const LightingData* data)noexcept{
-    available=data!=nullptr;cacheValid=available;manualSource=false;sourceRevision=0;
+    available=data!=nullptr;cacheValid=available;manualSource=false;sourceRevision=0;targetGlobalGain=1;
     source=data?data->source:LightingParameters{};target=data?data->target:LightingParameters{};draft=source;
 }
 bool LightingSession::ApplySource()noexcept{

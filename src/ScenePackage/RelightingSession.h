@@ -1,6 +1,10 @@
 #pragma once
 #include "ScenePackage/SourceObservation.h"
 #include "Scene/WorkMode.h"
+#include "ScenePackage/RelightingParameters.h"
+#include "ScenePackage/ImageEditState.h"
+#include "ScenePackage/ReferenceAnalysis.h"
+#include "ScenePackage/ImageFog.h"
 #include <algorithm>
 #include <stdexcept>
 namespace isr {
@@ -23,11 +27,20 @@ public:
     void Publish(std::shared_ptr<const SourceObservation> source)noexcept{
         source_=std::move(source);++revision_;
         lighting.Publish(source_?source_->lighting.get():nullptr);
+        relighting={};fog={};
+        display={};protection={};
+        reference={};
         if(!CanDisplayImage())mode_=WorkMode::Scene3D;
     }
     uint64_t Revision()const{return revision_;}
-    ImageDebugView imageView=ImageDebugView::Original;
+    void RestoreState(RelightingSession&& other)noexcept{const auto revision=revision_;*this=std::move(other);revision_=revision;}
+    ImageDebugView imageView=ImageDebugView::Relighted;
     LightingSession lighting;
+    RelightingParameters relighting;
+    ImageFogParameters fog;
+    ImageDisplayState display;
+    RegionProtectionEdit protection;
+    ReferenceSession reference;
 private:
     WorkMode mode_=WorkMode::Scene3D;
     uint64_t revision_=0;

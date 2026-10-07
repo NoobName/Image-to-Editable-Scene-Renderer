@@ -14,4 +14,16 @@ NumericTexture::NumericTexture(ID3D12Device* device,ID3D12GraphicsCommandList* l
     srv.Shader4ComponentMapping=D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;srv.Texture2D.MipLevels=1;
     device->CreateShaderResourceView(texture_.Resource(),&srv,view_.cpu);
 }
+std::unique_ptr<UploadBuffer> NumericTexture::Update(ID3D12Device* device,ID3D12GraphicsCommandList* list,const NumericImage& image){
+    const auto desc=texture_.Resource()->GetDesc();
+    if(desc.Width!=image.width||desc.Height!=image.height||desc.Format!=static_cast<DXGI_FORMAT>(image.format)||image.bytes.size()!=size_t(image.width)*image.height*image.Channels()*4)
+        throw std::invalid_argument("Numeric texture update shape mismatch");
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT fp{};UINT64 bytes;device->GetCopyableFootprints(&desc,0,1,0,&fp,nullptr,nullptr,&bytes);
+    auto upload=std::make_unique<UploadBuffer>(device,size_t(bytes));const size_t row=size_t(image.width)*image.Channels()*4;
+    for(UINT y=0;y<image.height;++y)upload->Write(size_t(fp.Offset)+size_t(y)*fp.Footprint.RowPitch,image.bytes.data()+y*row,row);
+    texture_.Transition(list,D3D12_RESOURCE_STATE_COPY_DEST);
+    D3D12_TEXTURE_COPY_LOCATION from{},to{};from.pResource=upload->Resource();from.Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;from.PlacedFootprint=fp;
+    to.pResource=texture_.Resource();to.Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;list->CopyTextureRegion(&to,0,0,0,&from,nullptr);
+    texture_.Transition(list,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);return upload;
+}
 }

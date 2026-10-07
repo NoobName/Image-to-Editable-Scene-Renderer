@@ -32,6 +32,7 @@ class LightingEstimate:
     fit_mask: np.ndarray
     weights: np.ndarray
     rejection_flags: np.ndarray
+    assistance: dict | None = None  # Optional comparison evidence; never an appearance replacement.
 
 
 def make_lighting_input(image, analysis):

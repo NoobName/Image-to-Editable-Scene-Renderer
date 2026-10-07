@@ -14,7 +14,7 @@ LookDevelopmentUI::LookDevelopmentUI(HWND window,DeviceContext& context,unsigned
         ImGui::StyleColorsDark();auto& style=ImGui::GetStyle();style.WindowRounding=7;style.FrameRounding=4;
         style.Colors[ImGuiCol_WindowBg]=ImVec4(0.055f,0.075f,0.10f,0.96f);
         if(!(win32_=ImGui_ImplWin32_Init(window)))throw std::runtime_error("ImGui Win32 init failed");
-        heap_.Allocate(64);for(UINT i=ViewportSlot;i>0;--i)free_.push_back(i-1);
+        heap_.Allocate(64);for(UINT i=ReferenceResidualSlot;i>0;--i)free_.push_back(i-1);
         ImGui_ImplDX12_InitInfo info{};info.Device=context.Device();info.CommandQueue=context.Queue();info.NumFramesInFlight=static_cast<int>(frames);
         info.RTVFormat=DXGI_FORMAT_R8G8B8A8_UNORM;info.DSVFormat=DXGI_FORMAT_UNKNOWN;info.UserData=this;info.SrvDescriptorHeap=heap_.Heap();
         info.SrvDescriptorAllocFn=[](ImGui_ImplDX12_InitInfo* info,D3D12_CPU_DESCRIPTOR_HANDLE* cpu,D3D12_GPU_DESCRIPTOR_HANDLE* gpu){
@@ -39,6 +39,21 @@ void LookDevelopmentUI::SetViewportTexture(ID3D12Resource* texture){
     D3D12_SHADER_RESOURCE_VIEW_DESC srv{};srv.Format=DXGI_FORMAT_R8G8B8A8_UNORM;srv.ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D;
     srv.Shader4ComponentMapping=D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;srv.Texture2D.MipLevels=1;
     context_.Device()->CreateShaderResourceView(texture,&srv,heap_.Cpu(ViewportSlot));
+}
+void LookDevelopmentUI::SetSourceTexture(ID3D12Resource* texture){
+    if(texture==sourceTexture_)return;
+    // Only package commits replace this borrowed view. Drain previous UI uses before reusing its fixed slot.
+    context_.Flush();D3D12_SHADER_RESOURCE_VIEW_DESC srv{};srv.Format=DXGI_FORMAT_R8G8B8A8_UNORM;
+    srv.ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D;srv.Shader4ComponentMapping=D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;srv.Texture2D.MipLevels=1;
+    context_.Device()->CreateShaderResourceView(texture,&srv,heap_.Cpu(SourceSlot));sourceTexture_=texture;
+    Log("UI source view rebound after fence: fixedSlot=62 freeFontSlots="+std::to_string(free_.size()));
+}
+void LookDevelopmentUI::SetReferenceTextures(ID3D12Resource* image,ID3D12Resource* residual){
+    showReference_=image!=nullptr;
+    context_.Flush();D3D12_SHADER_RESOURCE_VIEW_DESC srv{};srv.Format=DXGI_FORMAT_R8G8B8A8_UNORM;srv.ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D;
+    srv.Shader4ComponentMapping=D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;srv.Texture2D.MipLevels=1;
+    context_.Device()->CreateShaderResourceView(image,&srv,heap_.Cpu(ReferenceSlot));context_.Device()->CreateShaderResourceView(residual,&srv,heap_.Cpu(ReferenceResidualSlot));
+    Log("Reference UI views rebound after fence: fixedSlots=61,60 freeFontSlots="+std::to_string(free_.size()));
 }
 void LookDevelopmentUI::Update(Scene& scene,RenderSettings& settings,InputState& input,EnvironmentManager& environment,RelightingSession& session){
     if(!edit_.Captured())edit_.Capture(scene);

@@ -4,4 +4,9 @@ inline constexpr char SchemaText[] = R"ISR_SCHEMA(@SCENE_PACKAGE_SCHEMA@)ISR_SCH
 inline constexpr char AppearanceSchemaText[] = R"ISR_SCHEMA(@APPEARANCE_SCHEMA@)ISR_SCHEMA";
 inline constexpr char AnalysisSchemaText[] = R"ISR_SCHEMA(@ANALYSIS_SCHEMA@)ISR_SCHEMA";
 inline constexpr char LightingSchemaText[] = R"ISR_SCHEMA(@LIGHTING_SCHEMA@)ISR_SCHEMA";
+inline constexpr char IntrinsicSchemaText[] = R"ISR_SCHEMA(@INTRINSIC_SCHEMA@)ISR_SCHEMA";
+inline constexpr char RecipeSchemaText[] = R"ISR_SCHEMA(@RECIPE_SCHEMA@)ISR_SCHEMA";
+inline constexpr char ReferenceSchemaText[] = R"ISR_SCHEMA(@REFERENCE_SCHEMA@)ISR_SCHEMA";
+inline constexpr char OptimizationSchemaText[] = R"ISR_SCHEMA(@OPTIMIZATION_SCHEMA@)ISR_SCHEMA";
+inline constexpr char ShadowSchemaText[] = R"ISR_SCHEMA(@SHADOW_SCHEMA@)ISR_SCHEMA";
 }

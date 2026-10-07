@@ -10,6 +10,7 @@ public:
     void FinishUpload(){upload_.reset();}
     Texture& Image(){return texture_;}
     D3D12_GPU_DESCRIPTOR_HANDLE View()const{return view_.gpu;}
+    std::unique_ptr<UploadBuffer> Update(ID3D12Device*,ID3D12GraphicsCommandList*,const NumericImage&);
 private:
     Texture texture_;
     DescriptorAllocation view_;

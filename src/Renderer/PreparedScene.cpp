@@ -1,9 +1,9 @@
 #include "Renderer/PreparedScene.h"
 namespace isr {
-PreparedScene::PreparedScene(ID3D12Device* device,const Scene& source,std::shared_ptr<const SourceObservation> observed)
+PreparedScene::PreparedScene(ID3D12Device* device,const Scene& source,std::shared_ptr<const SourceObservation> observed,std::shared_ptr<const ProtectionMask> protection)
     :resources(device,D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,static_cast<UINT>(source.materials.size()*MaterialTextureCount+64),true),
      samplers(device,D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,2048,true),dsv(device,D3D12_DESCRIPTOR_HEAP_TYPE_DSV,1),observation(std::move(observed)) {
-    lighting=resources.Allocate(5);
+    importedProtection=protection;lighting=resources.Allocate(5);
     ComPtr<ID3D12CommandQueue> queue;ComPtr<ID3D12CommandAllocator> allocator;
     ComPtr<ID3D12GraphicsCommandList> list;ComPtr<ID3D12Fence> fence;
     D3D12_COMMAND_QUEUE_DESC desc{};desc.Type=D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -17,6 +17,10 @@ PreparedScene::PreparedScene(ID3D12Device* device,const Scene& source,std::share
     if(observation&&observation->CanDisplayImage())sourceImage=std::make_unique<SourceImagePass>(device,list.Get(),resources,*observation->anchor->pixels);
     if(sourceImage)analysis=std::make_unique<AnalysisTextures>(device,list.Get(),resources,observation->analysisMaps);
     if(sourceImage)lightingPreview=std::make_unique<LightingPreview>(device,list.Get(),resources,observation->lighting);
+    if(sourceImage)intrinsicPreview=std::make_unique<IntrinsicPreview>(device,list.Get(),resources,observation->intrinsic);
+    if(sourceImage)shadowPreview=std::make_unique<ShadowPreview>(device,list.Get(),sourceImage->Image(),observation->shadow);
+    if(analysis)imageRelighting=std::make_unique<ImageRelightingRenderer>(device,*analysis);
+    if(imageRelighting)imageComposite=std::make_unique<ImageRelightingComposite>(device,list.Get(),*sourceImage,*imageRelighting,analysis.get(),observation->lighting.get(),std::move(protection),observation->intrinsic.get(),observation.get());
     Check(list->Close());ID3D12CommandList* lists[]{list.Get()};queue->ExecuteCommandLists(1,lists);
     Check(queue->Signal(fence.Get(),1));Check(fence->SetEventOnCompletion(1,event.Get()));
     const auto wait=WaitForSingleObject(event.Get(),30000);
@@ -24,5 +28,8 @@ PreparedScene::PreparedScene(ID3D12Device* device,const Scene& source,std::share
     if(wait!=WAIT_OBJECT_0){Check(device->GetDeviceRemovedReason());throw std::runtime_error("Background GPU upload timed out");}
     Check(device->GetDeviceRemovedReason());scene->FinishUpload();if(sourceImage)sourceImage->FinishUpload();if(analysis)analysis->FinishUpload();
     if(lightingPreview)lightingPreview->FinishUpload();
+    if(intrinsicPreview)intrinsicPreview->FinishUpload();
+    if(shadowPreview)shadowPreview->FinishUpload();
+    if(imageComposite)imageComposite->FinishUpload();
 }
 }

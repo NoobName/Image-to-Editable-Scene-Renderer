@@ -28,6 +28,8 @@ def write_lighting_assets(root, image, appearance, estimate):
         'scaleConvention': 'median-luminance-proxy-fixed-exposure-albedo',
         'sourceLighting': estimate.source, 'targetLighting': deepcopy(estimate.source),
         'inputs': [{'path': p, 'sha256': sha256(root / p)} for p in INPUTS], 'fit': estimate.fit, 'maps': maps}
+    if estimate.assistance is not None:
+        data['assistance'] = estimate.assistance
     write_json_atomic(directory / 'lighting.json', data)
     write_lighting_diagnostic(directory, estimate)
     return data

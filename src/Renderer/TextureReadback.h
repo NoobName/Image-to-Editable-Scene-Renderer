@@ -5,7 +5,7 @@ namespace isr {
 // Captures a tracked Texture, restores its actual state; caller waits for submission fence before Read.
 class TextureReadback {
 public:
-    TextureReadback(ID3D12Device*,ID3D12GraphicsCommandList*,Texture&);
+    TextureReadback(ID3D12Device*,ID3D12GraphicsCommandList*,Texture&,bool depthFloat=false);
     NumericImage Read()const;
     D3D12_RESOURCE_STATES Before()const{return before_;}
 private:

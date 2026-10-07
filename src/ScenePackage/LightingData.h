@@ -19,6 +19,8 @@ struct LightingSession {
     LightingParameters source,target,draft;
     bool available=false,cacheValid=false,manualSource=false;
     uint64_t sourceRevision=0;
+    float targetGlobalGain=1; // Session-only control; source calibration and exported observations stay fixed.
+    LightingParameters EffectiveTarget()const{auto p=target;p.directIntensity*=targetGlobalGain;p.ambientIntensity*=targetGlobalGain;return p;}
     void Publish(const LightingData* data)noexcept;
     bool ApplySource()noexcept;
 };

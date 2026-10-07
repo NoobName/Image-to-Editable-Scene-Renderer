@@ -87,6 +87,8 @@ ScenePackage ScenePackageLoader::Load(const std::filesystem::path& path) const {
         result.auxiliary[it.key()]=package::AssetPath(result.root,it.value(),mask?"masks":"debug",{mask?".png":".exr"});
     }
     auto observation=std::make_shared<SourceObservation>();observation->packageRoot=result.root;
+    for(const auto& entity:result.scene.entities)if(entity.region)
+        observation->regions.push_back({entity.region->labelId,entity.objectId,entity.name,entity.region->category});
     observation->anchor=result.appearance;observation->analysisArtifacts=result.auxiliary;
     const auto report=result.root/"debug/reconstruction.json";
     if(std::filesystem::exists(report)){
@@ -103,6 +105,8 @@ ScenePackage ScenePackageLoader::Load(const std::filesystem::path& path) const {
     }
     observation->analysisMaps=LoadAnalysisMaps(result.root,result.appearance);
     observation->lighting=LoadLightingData(result.root,result.appearance);
+    observation->intrinsic=LoadIntrinsicData(result.root,result.appearance);
+    observation->shadow=LoadShadowData(result.root,result.appearance);
     result.observation=std::move(observation);
     scene.UpdateWorldMatrices();
     Log("Loaded ScenePackage v1: objects="+std::to_string(data["objects"].size())+" lights="+std::to_string(scene.lights.size())+" auxiliary="+std::to_string(result.auxiliary.size()));

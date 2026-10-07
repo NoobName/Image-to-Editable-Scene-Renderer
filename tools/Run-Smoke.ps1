@@ -1,4 +1,5 @@
 param(
+    [ValidatePattern('^(build|generated/[a-zA-Z0-9][a-zA-Z0-9_.-]*)$')][string]$BuildDirectory='build',
     [ValidateSet('Debug','Release')][string]$Configuration = 'Debug',
     [ValidateSet('clear','triangle','scene')][string]$Demo = 'scene',
     [ValidateRange(1,1000000)][int]$Frames = 120,
@@ -6,15 +7,38 @@ param(
     [switch]$Interactive,
     [switch]$Warp,
     [switch]$Capture,
+    [switch]$Profile,
     [ValidateSet('scene','image')][string]$WorkMode='scene',
-    [ValidateSet('original','grid','depth','geometry-normal','world-normal','position','validity','region','albedo','roughness','metallic','geometry-confidence','material-confidence','region-confidence','tangent-normal','shading-proxy','old-shading','lighting-residual','fit-mask')][string]$ImageView='original',
-    [ValidateSet('cycle','input','transaction','views','lighting-target','lighting-source')][string]$ImageSmoke,
+    [ValidateSet('original','grid','depth','geometry-normal','world-normal','position','validity','region','albedo','roughness','metallic','geometry-confidence','material-confidence','region-confidence','tangent-normal','shading-proxy','old-shading','lighting-residual','fit-mask','calculated-old','calculated-new','shading-difference','normal-light-dot','shading-validity','ratio','relighted','relit-difference','geometry-weight','boundary-weight','material-weight','fit-weight','signal-weight','shadow-risk-weight','relighting-confidence','raw-log-ratio','effective-log-ratio','clamp-mask','protection','intrinsic-albedo','intrinsic-shading','intrinsic-residual','intrinsic-uncertainty','intrinsic-error','intrinsic-validity','diffuse-support','protected-residual','specular-candidate','specular-confidence','diffuse-anchor','old-specular','new-specular','specular-delta','specular-clip','specular-difference','specular-protected','shadow-candidate','shadow-visibility','shadow-geometry','shadow-confidence','shadow-unknown','shadow-manual-confirm','shadow-manual-protect','shadow-effective','shadow-overlay','cast-old-map','cast-new-map','cast-old-visibility','cast-new-visibility','cast-old-estimate','cast-confidence','cast-change','cast-difference','cast-final','cast-baseline','fog-distance','fog-transmittance','fog-confidence','fog-airlight')][string]$ImageView='original',
+    [ValidateSet('cycle','input','transaction','views','lighting-target','lighting-source','profile-drag','ratio-drag','ratio-reset','ratio-zero','ratio-color','ratio-luminance','stability-baseline','stability-opposite','stability-preset','specular-move','specular-off','specular-rough','specular-reset','specular-invalid','shadow-move','shadow-off','shadow-zero','shadow-confidence-zero','shadow-reset','shadow-direct-off','shadow-pcf','shadow-scene-edit','workspace-side','workspace-wipe','workspace-zoom','workspace-protect','workspace-clear','workspace-exposure','workspace-overlay','workspace-global','fog-off','fog-zero','fog-reset','fog-drag')][string]$ImageSmoke,
     [ValidatePattern('^[0-9]+x[0-9]+$')][string]$WindowSize='1280x720',
     [switch]$FixedSize,
+    [ValidateRange(0,1000)][float]$ImageFogDensity=0,
+    [switch]$ImageFogRelative,
+    [switch]$NoSpecular,
     [switch]$ReverseOrder,
     [switch]$CameraSmoke,
     [string]$Model,
     [string]$Package,
+    [string]$ProtectionMask,
+    [string]$Recipe,
+    [string]$SaveRecipe,
+    [string]$ExportImage,
+    [string]$RecipeReload,
+    [switch]$RecipeCancel,
+    [switch]$ReplaceRecipe,
+    [string]$ReferenceInput,
+    [string]$ReferenceProposal,
+    [ValidateSet('same-scene','different-content')][string]$ReferenceRelation='different-content',
+    [switch]$ApplyReference,
+    [switch]$ResetReference,
+    [switch]$ReferenceDummy,
+    [int]$ReferenceCancelFrame=0,
+    [ValidateRange(1,5)][int]$ReferenceRepeat=1,
+    [string]$OptimizeReference,
+    [switch]$OptimizationRegistered,
+    [ValidateRange(1,200)][int]$OptimizationIterations=100,
+    [int]$OptimizationEditFrame=0,
     [ValidateSet('final','albedo','normal','roughness','metallic','depth','wireframe','original','estimated-albedo','estimated-normal','estimated-roughness')][string]$RenderMode='final',
     [float]$Exposure=0,
     [ValidateSet('none','reinhard','aces')][string]$ToneMapping='aces',
@@ -55,11 +79,15 @@ $ErrorActionPreference = 'Stop'
 if ($Interactive -and $Capture) { throw 'Capture requires a finite smoke run; omit -Interactive.' }
 if ($Model -and $Package) { throw 'Use either -Model or -Package.' }
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$executable = Join-Path $projectRoot "build/$Configuration/ImageSceneRenderer.exe"
+$executable = Join-Path $projectRoot "$BuildDirectory/$Configuration/ImageSceneRenderer.exe"
 $arguments = "--log generated/$LogName.log"
 $arguments += " --demo $Demo"
+if($Profile){$arguments += " --profile generated/$LogName.profile.json"}
 $arguments += " --work-mode $WorkMode --image-view $ImageView --window-size $WindowSize"
 if($FixedSize){$arguments += ' --fixed-size'}
+if($PSBoundParameters.ContainsKey('ImageFogDensity')){$arguments += ' --image-fog-density '+$ImageFogDensity.ToString([System.Globalization.CultureInfo]::InvariantCulture)}
+if($ImageFogRelative){$arguments += ' --image-fog-relative'}
+if($NoSpecular){$arguments += ' --no-specular'}
 if($ImageSmoke){$arguments += " --image-smoke $ImageSmoke"}
 $arguments += " --render-mode $RenderMode --ambient $($Ambient.ToString([System.Globalization.CultureInfo]::InvariantCulture)) --lights $Lights"
 if (!$Package -or $PSBoundParameters.ContainsKey('Exposure')) { $arguments += " --exposure $($Exposure.ToString([System.Globalization.CultureInfo]::InvariantCulture))" }
@@ -104,11 +132,31 @@ if ($Model) {
     if ($Model.Contains('"')) { throw 'Model path cannot contain quotes.' }
     $arguments += ' --model "' + $Model + '"'
 }
+if ($ProtectionMask) {
+    if ($ProtectionMask.Contains('"')) { throw 'Invalid protection path' }
+    $arguments += ' --protection-mask "' + $ProtectionMask + '"'
+}
 if ($Package) {
     if ($Package.Contains('"')) { throw 'Package path cannot contain quotes.' }
     $arguments += ' --package "' + $Package + '"'
 }
 $windowStyle = if ($Interactive) { 'Normal' } else { 'Hidden' }
+foreach($pair in @(@('recipe',$Recipe),@('save-recipe',$SaveRecipe),@('export-image',$ExportImage),@('recipe-reload',$RecipeReload))){
+    if($pair[1]){if($pair[1].Contains('"')){throw 'Recipe/export path cannot contain quotes.'};$arguments += ' --'+$pair[0]+' "'+$pair[1]+'"'}
+}
+if($RecipeCancel){$arguments += ' --recipe-cancel'}
+if($ReplaceRecipe){$arguments += ' --replace-recipe'}
+foreach($pair in @(@('reference-input',$ReferenceInput),@('reference-proposal',$ReferenceProposal))){
+    if($pair[1]){if($pair[1].Contains('"')){throw 'Invalid reference path'};$arguments += ' --'+$pair[0]+' "'+$pair[1]+'"'}
+}
+if($ReferenceInput -or $ReferenceProposal){$arguments += " --reference-relation $ReferenceRelation --reference-repeat $ReferenceRepeat"}
+if($ApplyReference){$arguments += ' --apply-reference'}
+if($ResetReference){$arguments += ' --reset-reference'}
+if($ReferenceDummy){$arguments += ' --reference-dummy'}
+if($ReferenceCancelFrame -gt 0){$arguments += " --reference-cancel-frame $ReferenceCancelFrame"}
+if($OptimizeReference){if($OptimizeReference.Contains('"')){throw 'Invalid optimization path'};$arguments += ' --optimize-reference "'+$OptimizeReference+'" --optimization-iterations '+$OptimizationIterations}
+if($OptimizationRegistered){$arguments += ' --optimization-registered'}
+if($OptimizationEditFrame -gt 0){$arguments += " --optimization-edit-frame $OptimizationEditFrame"}
 $process = Start-Process -FilePath $executable -WorkingDirectory $projectRoot -ArgumentList $arguments -WindowStyle $windowStyle -PassThru
 if ($Interactive) { Write-Output "Started PID=$($process.Id)"; exit 0 }
 if (!$process.WaitForExit(60000)) { throw 'Smoke process did not finish within 60 seconds. Inspect the application.' }

@@ -9,8 +9,9 @@ struct ReconstructionOptions {
     std::filesystem::path projectRoot,python;
     std::string geometry="moge",segmentation="sam2",materials="marigold";
     std::string lighting="robust-directional-ambient";
+    std::string intrinsic="marigold-lighting";
     LightingParameters calibration;
-    bool lightingOnly=false;
+    bool lightingOnly=false,intrinsicOnly=false,shadowOnly=false;
     unsigned maxSize=512;
     bool offline=true;
 };
@@ -18,7 +19,7 @@ struct ReconstructionStatus {
     ReconstructionState state=ReconstructionState::Idle;
     std::vector<std::string> stageNames{"geometry","segmentation","materials","lighting","export"};
     std::vector<std::string> stages{"pending","pending","pending","pending","pending"};
-    bool lightingOnly=false;
+    bool lightingOnly=false,intrinsicOnly=false,shadowOnly=false;
     std::string message="Choose File > Reconstruct Image",jobId;
     std::filesystem::path input,output,log;
     bool cancelRequested=false;
@@ -29,7 +30,7 @@ public:
     explicit ReconstructionManager(std::filesystem::path projectRoot);
     ~ReconstructionManager();
     ReconstructionOptions options; // UI/main thread only; snapshotted at Start.
-    bool Start(const std::filesystem::path& input,bool lightingOnly=false);
+    bool Start(const std::filesystem::path& input,bool lightingOnly=false,bool intrinsicOnly=false,bool shadowOnly=false);
     bool Retry();
     void Cancel();
     ReconstructionStatus Status()const;

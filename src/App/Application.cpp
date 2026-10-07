@@ -11,6 +11,8 @@
 #include "App/ReconstructionSession.h"
 #include "App/EditorSmoke.h"
 #include "App/ImageModeOptions.h"
+#include "App/RecipeWorkflow.h"
+#include "App/ReferenceWorkflow.h"
 #include <chrono>
 #include <string>
 #include <algorithm>
@@ -23,20 +25,50 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
     bool environmentSmoke=false,lightingTest=false,lookSmoke=false,explicitEnvironment=false;
     EditorSmoke editorSmoke;
     ImageModeOptions imageOptions;
+    RecipeWorkflow recipeWorkflow;
+    ReferenceWorkflow referenceWorkflow;
+    unsigned referenceCancelFrame=0,referenceRepeat=1,optimizationEditFrame=0;ReferenceAction repeatReferenceAction=ReferenceAction::None;
+    std::filesystem::path recipePath,saveRecipePath,exportImagePath,recipeReloadPath;
+    std::filesystem::path profilePath;
+    bool replaceRecipe=false,recipeCancel=false;
+    std::optional<RelightingRecipe> startupRecipe;
     unsigned frameLimit = 0; Demo demo = Demo::Scene; std::filesystem::path capture,model,packagePath;std::string objectSmoke;
     wchar_t executable[32768]{};
     if (!GetModuleFileNameW(nullptr, executable, 32768)) Check(HRESULT_FROM_WIN32(GetLastError()));
     ReconstructionSession reconstruction(std::filesystem::path(executable).parent_path());
-    std::filesystem::path reconstructImage,nextReconstructImage;unsigned cancelReconstructionFrame=0,reconstructionRepeat=1;bool lightingOnlyJob=false;
+    std::filesystem::path reconstructImage,nextReconstructImage;unsigned cancelReconstructionFrame=0,reconstructionRepeat=1;bool lightingOnlyJob=false,intrinsicOnlyJob=false,shadowOnlyJob=false;
     std::filesystem::path log = std::filesystem::path(executable).parent_path() / L"renderer.log";
     for (int i = 1; i < argc; ++i) {
         const std::wstring argument = argv[i];
+        if(argument==L"--profile"&&i+1<argc){profilePath=argv[++i];continue;}
         if(imageOptions.Parse(argument,i,argc,argv))continue;
+        if((argument==L"--reference-input"||argument==L"--reference-proposal"||argument==L"--optimize-reference")&&i+1<argc){
+            if(referenceWorkflow.actions.request!=ReferenceAction::None)throw std::invalid_argument("Choose one reference input");
+            referenceWorkflow.actions.input=argv[++i];referenceWorkflow.actions.request=argument==L"--reference-input"?ReferenceAction::Analyze:argument==L"--optimize-reference"?ReferenceAction::Optimize:ReferenceAction::Load;repeatReferenceAction=referenceWorkflow.actions.request;continue;}
+        if(argument==L"--optimization-registered"){referenceWorkflow.actions.registered=true;continue;}
+        if(argument==L"--optimization-iterations"&&i+1<argc){referenceWorkflow.actions.iterations=std::stoi(argv[++i]);if(referenceWorkflow.actions.iterations<1||referenceWorkflow.actions.iterations>200)throw std::invalid_argument("Optimization iterations must be 1..200");continue;}
+        if(argument==L"--optimization-edit-frame"&&i+1<argc){optimizationEditFrame=std::stoul(argv[++i]);continue;}
+        if(argument==L"--reference-relation"&&i+1<argc){referenceWorkflow.actions.relation=PathUtf8(argv[++i]);if(referenceWorkflow.actions.relation!="same-scene"&&referenceWorkflow.actions.relation!="different-content")throw std::invalid_argument("Unknown reference relation");continue;}
+        if(argument==L"--apply-reference"){referenceWorkflow.autoApply=true;continue;}
+        if(argument==L"--reset-reference"){referenceWorkflow.resetAfterApply=true;continue;}
+        if(argument==L"--reference-dummy"){referenceWorkflow.actions.useConfiguredBackends=false;continue;}
+        if(argument==L"--reference-cancel-frame"&&i+1<argc){referenceCancelFrame=std::stoul(argv[++i]);continue;}
+        if(argument==L"--reference-repeat"&&i+1<argc){referenceRepeat=std::stoul(argv[++i]);if(referenceRepeat<1||referenceRepeat>5)throw std::invalid_argument("Reference repeat must be 1..5");continue;}
+        if(argument==L"--recipe"&&i+1<argc){recipePath=argv[++i];continue;}
+        if(argument==L"--save-recipe"&&i+1<argc){saveRecipePath=argv[++i];continue;}
+        if(argument==L"--replace-recipe"){replaceRecipe=true;continue;}
+        if(argument==L"--export-image"&&i+1<argc){exportImagePath=argv[++i];continue;}
+        if(argument==L"--recipe-reload"&&i+1<argc){recipeReloadPath=argv[++i];continue;}
+        if(argument==L"--recipe-cancel"){recipeCancel=true;continue;}
         if(ParseLookOption(argument,i,argc,argv,settings.look))continue;
         if(ParseLightingOption(argument,i,argc,argv,settings,environmentSmoke,lightingTest)){if(argument==L"--env")explicitEnvironment=true;continue;}
         if (argument == L"--warp") warp = true;
         else if(argument==L"--reconstruct"&&i+1<argc)reconstructImage=argv[++i];
         else if(argument==L"--fit-lighting"&&i+1<argc){reconstructImage=argv[++i];lightingOnlyJob=true;}
+        else if(argument==L"--estimate-shadows"&&i+1<argc){reconstructImage=argv[++i];shadowOnlyJob=true;}
+        else if(argument==L"--estimate-intrinsic"&&i+1<argc){reconstructImage=argv[++i];intrinsicOnlyJob=true;}
+        else if(argument==L"--intrinsic-backend"&&i+1<argc)reconstruction.manager.options.intrinsic=PathUtf8(std::filesystem::path(argv[++i]));
+        else if(argument==L"--lighting-backend"&&i+1<argc)reconstruction.manager.options.lighting=PathUtf8(std::filesystem::path(argv[++i]));
         else if(argument==L"--reconstruction-next-image"&&i+1<argc)nextReconstructImage=argv[++i];
         else if(argument==L"--reconstruction-python"&&i+1<argc)reconstruction.manager.options.python=argv[++i];
         else if(argument==L"--reconstruction-cancel-frame"&&i+1<argc)cancelReconstructionFrame=std::stoul(argv[++i]);
@@ -79,16 +111,22 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         else throw std::runtime_error("Unknown or incomplete command-line argument");
     }
     OpenLog(log);
+    if(!recipePath.empty()){
+        if(!packagePath.empty()||!model.empty()||!imageOptions.protectionMask.empty())throw std::invalid_argument("--recipe owns its package and protection mask");
+        startupRecipe=LoadRecipe(recipePath);packagePath=startupRecipe->package->root;
+    }
+    if((!saveRecipePath.empty()||!exportImagePath.empty()||!recipeReloadPath.empty())&&!frameLimit)throw std::invalid_argument("Recipe CLI save/export/reload requires --frames");
     if (!capture.empty() && !frameLimit) throw std::invalid_argument("--capture requires --frames");
     if(!model.empty()&&!packagePath.empty()) throw std::invalid_argument("--model and --package are mutually exclusive");
     if(!packagePath.empty()&&demo!=Demo::Scene) throw std::invalid_argument("--package requires --demo scene");
     if(!reconstructImage.empty()&&demo!=Demo::Scene)throw std::invalid_argument("--reconstruct requires --demo scene");
     if(!editorSmoke.mode.empty()&&(!reconstructImage.empty()||!frameLimit||demo!=Demo::Scene))throw std::invalid_argument("Editor smoke requires a finite scene run without reconstruction");
     if(!imageOptions.smoke.empty()&&(!reconstructImage.empty()||!frameLimit||demo!=Demo::Scene))throw std::invalid_argument("Image smoke requires a finite scene run without reconstruction");
+    const auto cpuPreparationStart=std::chrono::steady_clock::now();
     AssetManager assets;Scene scene;CameraController controller;std::shared_ptr<const SourceObservation> observation;
     if(packagePath.empty()) scene=model.empty()?Scene::CreateDemo():assets.LoadModel(model);
     else {
-        auto package=ScenePackageLoader{}.Load(packagePath);scene=std::move(package.scene);
+        auto package=startupRecipe?std::move(*startupRecipe->package):ScenePackageLoader{}.Load(packagePath);scene=std::move(package.scene);
         observation=std::move(package.observation);
         settings.look=package.look;settings.environmentPath=package.environment.hdri;
         settings.environmentIntensity=package.environment.intensity;settings.environmentRotation=package.environment.rotation;
@@ -101,10 +139,12 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
             if(ParseLookOption(argument,i,argc,argv,settings.look)) continue;
             if(ParseLightingOption(argument,i,argc,argv,settings,environmentSmoke,lightingTest)) continue;
             // Skip operands of other switches, even when a filename happens to start with --.
-            if(argument==L"--package"||argument==L"--model"||argument==L"--log"||argument==L"--capture"||argument==L"--frames"||
+            if(argument==L"--image-fog-density"||argument==L"--profile"||argument==L"--package"||argument==L"--model"||argument==L"--log"||argument==L"--capture"||argument==L"--frames"||
                 argument==L"--demo"||argument==L"--render-mode"||argument==L"--ambient"||argument==L"--lights"||argument==L"--object-smoke"||argument==L"--editor-smoke"||argument==L"--editor-object"||
-                argument==L"--reconstruct"||argument==L"--fit-lighting"||argument==L"--reconstruction-python"||argument==L"--reconstruction-preset"||argument==L"--reconstruction-cancel-frame"||argument==L"--reconstruction-repeat"||
-                argument==L"--work-mode"||argument==L"--image-view"||argument==L"--window-size"||argument==L"--image-smoke"||argument==L"--reconstruction-next-image") ++i;
+                argument==L"--reconstruct"||argument==L"--fit-lighting"||argument==L"--estimate-intrinsic"||argument==L"--estimate-shadows"||argument==L"--intrinsic-backend"||argument==L"--lighting-backend"||argument==L"--reconstruction-python"||argument==L"--reconstruction-preset"||argument==L"--reconstruction-cancel-frame"||argument==L"--reconstruction-repeat"||
+                argument==L"--work-mode"||argument==L"--image-view"||argument==L"--window-size"||argument==L"--image-smoke"||argument==L"--protection-mask"||argument==L"--reconstruction-next-image"||
+                argument==L"--recipe"||argument==L"--save-recipe"||argument==L"--export-image"||argument==L"--recipe-reload"||
+                argument==L"--reference-input"||argument==L"--reference-proposal"||argument==L"--reference-relation"||argument==L"--reference-cancel-frame"||argument==L"--reference-repeat"||argument==L"--optimize-reference"||argument==L"--optimization-iterations"||argument==L"--optimization-edit-frame") ++i;
         }
         Log("Package look: exposure="+std::to_string(settings.look.exposure)+"; environment intensity="+std::to_string(settings.environmentIntensity));
     }
@@ -119,13 +159,21 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         if(found==scene.entities.end())throw std::invalid_argument("Object smoke ID was not found");
         objectSmokeRoot=size_t(found-scene.entities.begin());
     }
+    Log("Startup CPU scene/package preparation ms="+std::to_string(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-cpuPreparationStart).count())+" (file validation/decode; excludes AI)");
+    const auto gpuPreparationStart=std::chrono::steady_clock::now();
     Window window(instance,imageOptions.width,imageOptions.height);
     editorSmoke.Initialize(scene);
-    Renderer renderer(window.Handle(), window.Width(), window.Height(), warp, demo, scene,ui.value_or(frameLimit==0),settings.environmentPath,std::move(observation));
+    Renderer renderer(window.Handle(), window.Width(), window.Height(), warp, demo, scene,ui.value_or(frameLimit==0),settings.environmentPath,std::move(observation),startupRecipe?startupRecipe->importedMask:LoadProtectionMask(imageOptions.protectionMask));
+    Log("Startup GPU/window preparation ms="+std::to_string(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-gpuPreparationStart).count())+" (includes uploads, shader compile, environment; excludes AI)");
     imageOptions.Start(renderer);
+    if(startupRecipe)renderer.Session().RestoreState(std::move(startupRecipe->session));
+    imageOptions.ApplyFog(renderer);
+    renderer.BindRecipe(window.Handle(),&recipeWorkflow.actions);
+    renderer.BindReference(window.Handle(),&referenceWorkflow.actions);
+    if(repeatReferenceAction!=ReferenceAction::None&&!renderer.Session().SetMode(WorkMode::ImageRelighting))throw std::runtime_error("Reference matching requires source image mode");
     if(auto selected=editorSmoke.Selection())renderer.SelectEntity(*selected);
     renderer.BindReconstruction(window.Handle(),&reconstruction.manager);
-    if(!reconstructImage.empty())reconstruction.manager.Start(reconstructImage,lightingOnlyJob);
+    if(!reconstructImage.empty())reconstruction.manager.Start(reconstructImage,lightingOnlyJob,intrinsicOnlyJob,shadowOnlyJob);
     window.SetMessageHandler([&](HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){return renderer.HandleMessage(hwnd,msg,wp,lp);});
     struct MessageHandlerLifetime {
         Window& window;
@@ -136,10 +184,19 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
     unsigned reconstructionEndFrame=0;const auto reconstructionStart=std::chrono::steady_clock::now();
     auto previousReconstructionState=ReconstructionState::Idle;
     auto previous = std::chrono::steady_clock::now();
+    if(!profilePath.empty())renderer.EnableProfiling();
     while (window.Pump()) {
         const auto now = std::chrono::steady_clock::now();
         const float dt = std::chrono::duration<float>(now-previous).count(); previous = now;
         reconstruction.Tick(renderer,scene,settings,controller);
+        if(frames==10&&!recipeReloadPath.empty()){recipeWorkflow.actions.path=recipeReloadPath;recipeWorkflow.actions.request=RecipeAction::Open;}
+        if(recipeCancel&&frames==11)recipeWorkflow.actions.cancel=true;
+        recipeWorkflow.Tick(renderer,scene,settings,controller,reconstruction.manager.Status().Busy());
+        if(referenceCancelFrame&&frames==referenceCancelFrame)referenceWorkflow.actions.cancel=true;
+        if(optimizationEditFrame&&frames==optimizationEditFrame){renderer.Session().lighting.target.directIntensity=.123f;Log("Optimization concurrency test: user target changed to 0.123");}
+        const bool referenceWasBusy=referenceWorkflow.actions.busy;
+        referenceWorkflow.Tick(renderer,reconstruction.manager.options,recipeWorkflow.actions.busy||reconstruction.manager.Status().Busy());
+        if(referenceWasBusy&&!referenceWorkflow.actions.busy&&referenceRepeat>1&&!referenceWorkflow.actions.cancel){--referenceRepeat;referenceWorkflow.actions.request=repeatReferenceAction;}
         const auto reconstructionState=reconstruction.manager.Status().state;
         if(reconstructionState!=previousReconstructionState){Log(std::string("Reconstruction state ")+ReconstructionStateName(reconstructionState)+" at rendered frame="+std::to_string(frames));previousReconstructionState=reconstructionState;}
         if(!reconstructImage.empty()&&!reconstruction.manager.Status().Busy()&&!reconstructionEndFrame){
@@ -189,7 +246,17 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
         auto endFrame=reconstructImage.empty()?frameLimit:reconstructionEndFrame;
         if(imageOptions.Busy())endFrame=0;
         else if(imageOptions.smoke=="transaction"&&frameLimit)endFrame=std::max(frameLimit,frames+1);
-        renderer.Render(scene,settings,reverseOrder,frameLimit && endFrame && frames+1 == endFrame ? capture : std::filesystem::path{}); ++frames;
+        // A finite recipe load captures the committed document, not a frame from the old
+        // scene while its candidate is still uploading. The native export uses the same state.
+        if(recipeWorkflow.actions.busy){endFrame=0;if(frameLimit&&now-reconstructionStart>std::chrono::seconds(60))throw std::runtime_error("Recipe smoke timed out");}
+        else if(!recipeReloadPath.empty()&&frameLimit)endFrame=std::max(frameLimit,frames+1);
+        if(referenceWorkflow.actions.busy||referenceWorkflow.actions.request!=ReferenceAction::None){endFrame=0;if(frameLimit&&now-reconstructionStart>std::chrono::minutes(20))throw std::runtime_error("Reference smoke timed out");}
+        else if(repeatReferenceAction!=ReferenceAction::None&&frameLimit)endFrame=std::max(frameLimit,frames+1);
+        // Completion of one independent task must not override another task's pending fence/load.
+        if(recipeWorkflow.actions.busy||referenceWorkflow.actions.busy||referenceWorkflow.actions.request!=ReferenceAction::None||imageOptions.Busy()||reconstruction.manager.Status().Busy())endFrame=0;
+        const bool capturing=frameLimit&&endFrame&&frames+1==endFrame&&!capture.empty();
+        renderer.Render(scene,settings,reverseOrder,capturing?capture:std::filesystem::path{}); ++frames;
+        renderer.ProfileCpuFrame(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-now).count(),capturing);
         if (smoke && !imageOptions.fixedSize && frames == 20) window.SetClientSize(960, 540);
         if (smoke && !imageOptions.fixedSize && frames == 40) window.SetClientSize(1280, 720);
         if (smoke && frames == 60) window.TestMinimizeRestore();
@@ -197,11 +264,16 @@ int RunApplication(HINSTANCE instance, int argc, wchar_t** argv) {
             if(!reconstructImage.empty()&&reconstructionRepeat>1&&reconstruction.manager.Status().state==ReconstructionState::Ready){
                 --reconstructionRepeat;reconstructionEndFrame=0;
                 if(!nextReconstructImage.empty())reconstructImage=std::exchange(nextReconstructImage,{});
-                reconstruction.manager.Start(reconstructImage,lightingOnlyJob);
+                reconstruction.manager.Start(reconstructImage,lightingOnlyJob,intrinsicOnlyJob,shadowOnlyJob);
             }else break;
         }
     }
     renderer.Finish();
+    if(!profilePath.empty())renderer.SaveProfile(profilePath);
+    Log("Recipe workflow: "+recipeWorkflow.actions.status);
+    Log("Reference workflow: "+referenceWorkflow.actions.status);
+    if(!saveRecipePath.empty())SaveRecipe(saveRecipePath,renderer.Session(),renderer.ImportedProtection(),replaceRecipe);
+    if(!exportImagePath.empty())renderer.ExportImage(exportImagePath);
     imageOptions.Report(capture,scene,renderer,settings);
     window.SetMessageHandler({});
     const auto position = scene.camera.Position();

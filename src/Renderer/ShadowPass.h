@@ -12,7 +12,8 @@ class ShadowPass {
 public:
     static constexpr unsigned Resolution=2048;
     ShadowPass(ID3D12Device*,DescriptorAllocator& dsv,D3D12_CPU_DESCRIPTOR_HANDLE srv,const Scene&);
-    ShadowFrame Draw(ID3D12GraphicsCommandList*,FrameContext&,const Scene&,const GpuScene&,const RenderSettings&);
+    ShadowFrame Draw(ID3D12GraphicsCommandList*,FrameContext&,const Scene&,const GpuScene&,const RenderSettings&,const DirectX::XMFLOAT3* fixedDirection=nullptr);
+    Texture& Depth(){return *depth_;}
 private:
     std::unique_ptr<Texture> depth_;
     DescriptorAllocation dsv_;

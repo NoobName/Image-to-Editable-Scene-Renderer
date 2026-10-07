@@ -9,6 +9,7 @@ class SourceImagePass {
 public:
     SourceImagePass(ID3D12Device*,ID3D12GraphicsCommandList*,DescriptorAllocator&,const ImageData&);
     void FinishUpload(){upload_.reset();}
+    Texture& Image(){return texture_;}
     void Draw(ID3D12GraphicsCommandList*,D3D12_CPU_DESCRIPTOR_HANDLE,uint32_t width,uint32_t height,ImageDebugView)const;
 private:
     Texture texture_;

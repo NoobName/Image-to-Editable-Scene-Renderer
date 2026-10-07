@@ -32,6 +32,24 @@ def load_lighting(root, appearance):
     try:
         data = read_json(asset_path(root, 'lighting/lighting.json', 'lighting', ('.json',)))
         validate(data, SCHEMA, schema=SCHEMA)
+        assisted = data['fit']['backend'] == 'intrinsic-assisted'
+        if assisted != ('assistance' in data):
+            raise ValueError('lighting assistance/backend mismatch')
+        if assisted:
+            info = data['assistance']; digest = info['intrinsicSha256']
+            if digest:
+                path = asset_path(root, 'intrinsic/intrinsic.json', 'intrinsic', ('.json',))
+                if path.stat().st_size > 1024*1024 or len(digest) != 64 or sha256(path) != digest:
+                    raise ValueError('lighting stale intrinsic fingerprint')
+            elif info['reason'] != 'missing-intrinsic':
+                raise ValueError('lighting missing intrinsic provenance')
+            chosen = 'candidate' if info['selected'] else 'baseline'
+            if info['selected'] != (info['reason'] == 'accepted') or data['sourceLighting'] != info[chosen+'Source']:
+                raise ValueError('lighting assistance selection mismatch')
+            for k,v in info[chosen+'Fit'].items():
+                if data['fit'][k] != v: raise ValueError('lighting assistance fit mismatch')
+            for key in ('baselineSource','candidateSource'):
+                if abs(np.linalg.norm(info[key]['direction'])-1)>1e-5: raise ValueError('lighting comparison direction not unit')
         if appearance is None or data['sourceId'] != appearance['sourceId'] or data['sourceSha256'] != appearance['sourceImage']['sha256'] or data['analysisSize'] != appearance['analysisImage']['size']:
             raise ValueError('lighting/source identity or dimensions mismatch')
         w, h = data['analysisSize']; fit = data['fit']

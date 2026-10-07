@@ -8,9 +8,9 @@ void ReconstructionPanel::DrawLighting(RelightingSession& session){
     const auto action=DrawLightingPanel(session,manager_&&manager_->Status().Busy());
     if(action&&manager_&&session.Source()){
         const auto previous=manager_->options;
-        manager_->options.lighting=action==2?"manual-test":"robust-directional-ambient";
+        manager_->options.lighting=action==2?"manual-test":action==4?"intrinsic-assisted":"robust-directional-ambient";
         manager_->options.calibration=session.lighting.source;
-        manager_->Start(session.Source()->packageRoot,true);statusOpen_=true;
+        manager_->Start(session.Source()->packageRoot,action!=3&&action!=5,action==3,action==5);statusOpen_=true;
         manager_->options=previous; // An offline manual export must not change defaults for the next image.
     }
 }
@@ -53,6 +53,7 @@ void ReconstructionPanel::DrawWindows(){
             combo("Geometry",config.geometry,"moge","dummy");combo("Segmentation",config.segmentation,"sam2","dummy");
             combo("Materials",config.materials,"marigold","neutral");
             combo("Lighting",config.lighting,"robust-directional-ambient","manual-test");
+            combo("Intrinsic (offline only)",config.intrinsic,"marigold-lighting","proxy");
             int size=static_cast<int>(config.maxSize);if(ImGui::SliderInt("Max image edge",&size,128,1024))config.maxSize=static_cast<unsigned>(size);
             ImGui::Checkbox("Use cached models only (offline)",&config.offline);
             ImGui::TextWrapped("Default: MoGe + SAM 2 + Marigold, 512 pixels. Dummy/neutral are explicit test fallbacks. Install dependencies with the project's setup scripts first.");

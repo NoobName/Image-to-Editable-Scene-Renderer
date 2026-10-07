@@ -9,6 +9,7 @@ public:
     void Bind(HWND owner,ReconstructionManager* manager){owner_=owner;manager_=manager;}
     float Draw(); // Menu height; also displays progress/settings without blocking render.
     void DrawWindows();
+    bool Busy()const{return manager_&&manager_->Status().Busy();}
     void DrawLighting(RelightingSession&);
 private:
     HWND owner_=nullptr;

@@ -1,0 +1,24 @@
+{
+  "type":"object","additionalProperties":false,
+  "required":["version","status","reason","relation","registered","seed","maxIterations","parameterization","exposureDeltaBounds","maxDirectionChangeDegrees","maxSamples","samples","initialLoss","bestLoss","history","approximation","cpuHlslTolerance","seconds","initialState","initialEffectiveTarget","candidate"],
+  "properties":{
+    "version":{"const":1},"status":{"enum":["improved","rejected","cancelled","no-improvement"]},
+    "reason":{"type":"string","minLength":1},"relation":{"enum":["same-scene","different-content"]},"registered":{"type":"boolean"},
+    "seed":{"const":31},"maxIterations":{"type":"integer","minimum":1,"maximum":200},
+    "parameterization":{"const":"travel-yaw-pitch; nonnegative-directRGB-ambientRGB; fixed-Y(D+B)"},
+    "exposureDeltaBounds":{"type":"array","minItems":2,"maxItems":2,"items":{"const":0}},
+    "maxDirectionChangeDegrees":{"const":90},"maxSamples":{"const":4096},"samples":{"type":"integer","minimum":0,"maximum":4096},
+    "initialLoss":{"type":"number","minimum":0,"maximum":1000000},"bestLoss":{"type":"number","minimum":0,"maximum":1000000},
+    "sampleIndexHash":{"type":"string","minLength":64},
+    "history":{"type":"array","maxItems":200,"items":{"type":"object","additionalProperties":false,"required":["iteration","bestLoss","candidateLoss","parameters","stepMaximum"],"properties":{
+      "iteration":{"type":"integer","minimum":0,"maximum":199},"bestLoss":{"type":"number","minimum":0,"maximum":1000000},"candidateLoss":{"type":"number","minimum":0,"maximum":1000000},
+      "parameters":{"type":"array","minItems":8,"maxItems":8,"items":{"type":"number","minimum":-128,"maximum":128}},"stepMaximum":{"type":"number","minimum":0,"maximum":128}
+    }}},
+    "approximation":{"const":"diffuse-unit-response only; excludes ratio, cast-shadow, specular and full-resolution display"},"cpuHlslTolerance":{"const":0.00005},
+    "seconds":{"type":"number","minimum":0,"maximum":1000000000},"initialState":{"type":"object"},"initialEffectiveTarget":{"type":"object"},
+    "candidate":{"type":"object","additionalProperties":false,"required":["path","sha256","size"],"properties":{
+      "path":{"type":"string","minLength":1},"sha256":{"type":"string","minLength":64},
+      "size":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer","minimum":1,"maximum":2048}}
+    }}
+  }
+}

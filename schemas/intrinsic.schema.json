@@ -1,0 +1,23 @@
+{
+  "type":"object","additionalProperties":false,
+  "required":["version","sourceId","sourceSha256","analysisSize","colorSpace","mapping","input","residualSemantics","gauge","provenance","metrics","maps"],
+  "properties":{
+    "version":{"const":1},"sourceId":{"type":"string","minLength":1},"sourceSha256":{"type":"string","minLength":64},
+    "analysisSize":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer","minimum":1,"maximum":2048}},
+    "colorSpace":{"const":"linear-srgb"},"mapping":{"const":"full-frame-analysis-pixel-centers"},
+    "input":{"$ref":"#/$defs/fingerprint"},
+    "residualSemantics":{"enum":["signed-non-diffuse","nonnegative-non-diffuse","unavailable"]},
+    "gauge":{"type":"object","additionalProperties":false,"required":["name","exposure","albedoGain","shadingGain","residualGain","scaleAmbiguous"],"properties":{
+      "name":{"type":"string","minLength":1},"exposure":{"const":0},"albedoGain":{"const":1},"shadingGain":{"const":1},"residualGain":{"const":1},"scaleAmbiguous":{"type":"boolean"}}},
+    "provenance":{"type":"object","required":["backend","residual_semantics","uncertainty_semantics","gauge","scale_ambiguous","provenance"],"properties":{
+      "backend":{"type":"string","minLength":1},"residual_semantics":{"type":"string"},"uncertainty_semantics":{"type":"string","minLength":1},"gauge":{"type":"string"},"scale_ambiguous":{"type":"boolean"},"provenance":{"enum":["estimated","derived-not-estimated","synthetic"]}}},
+    "metrics":{"type":"object","additionalProperties":false,"required":["validPixels","rmse","maxError"],"properties":{
+      "validPixels":{"type":"integer","minimum":0,"maximum":4194304},"rmse":{"type":"number","minimum":0,"maximum":128},"maxError":{"type":"number","minimum":0,"maximum":128}}},
+    "maps":{"type":"object","additionalProperties":false,"required":["albedo","shading","uncertainty","error","validity"],"properties":{
+      "albedo":{"$ref":"#/$defs/map"},"shading":{"$ref":"#/$defs/map"},"residual":{"$ref":"#/$defs/map"},"uncertainty":{"$ref":"#/$defs/map"},"error":{"$ref":"#/$defs/map"},"validity":{"$ref":"#/$defs/map"}}}
+  },
+  "$defs":{
+    "fingerprint":{"type":"object","additionalProperties":false,"required":["path","sha256"],"properties":{"path":{"type":"string","minLength":1},"sha256":{"type":"string","minLength":64}}},
+    "map":{"type":"object","additionalProperties":false,"required":["path","sha256","format"],"properties":{"path":{"type":"string","minLength":1},"sha256":{"type":"string","minLength":64},"format":{"enum":["RGBA32_FLOAT","R32_FLOAT","R32_UINT"]}}}
+  }
+}

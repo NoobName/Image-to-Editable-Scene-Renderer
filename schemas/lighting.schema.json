@@ -217,7 +217,8 @@
         "backend": {
           "enum": [
             "robust-directional-ambient",
-            "manual-test"
+            "manual-test",
+            "intrinsic-assisted"
           ]
         },
         "status": {
@@ -286,7 +287,7 @@
         },
         "normalization": {
           "type": "number",
-          "minimum": 0.000001
+          "minimum": 1e-06
         },
         "exposureEV": {
           "const": 0
@@ -536,6 +537,322 @@
         "oldShading",
         "residual",
         "fitMask"
+      ],
+      "additionalProperties": false
+    },
+    "assistance": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "accepted",
+            "missing-intrinsic",
+            "proxy-is-not-independent-intrinsic",
+            "degenerate-intrinsic-fit"
+          ]
+        },
+        "intrinsicSha256": {
+          "type": "string"
+        },
+        "baselineSource": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "direct": {
+              "type": "object",
+              "properties": {
+                "intensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 64
+                },
+                "color": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "intensity",
+                "color"
+              ],
+              "additionalProperties": false
+            },
+            "ambient": {
+              "type": "object",
+              "properties": {
+                "intensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 64
+                },
+                "color": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "intensity",
+                "color"
+              ],
+              "additionalProperties": false
+            },
+            "provenance": {
+              "enum": [
+                "estimated-baseline",
+                "unreliable-baseline",
+                "manual-test",
+                "manual-calibration"
+              ]
+            }
+          },
+          "required": [
+            "direction",
+            "direct",
+            "ambient",
+            "provenance"
+          ],
+          "additionalProperties": false
+        },
+        "candidateSource": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "direct": {
+              "type": "object",
+              "properties": {
+                "intensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 64
+                },
+                "color": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "intensity",
+                "color"
+              ],
+              "additionalProperties": false
+            },
+            "ambient": {
+              "type": "object",
+              "properties": {
+                "intensity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 64
+                },
+                "color": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "intensity",
+                "color"
+              ],
+              "additionalProperties": false
+            },
+            "provenance": {
+              "enum": [
+                "estimated-baseline",
+                "unreliable-baseline",
+                "manual-test",
+                "manual-calibration"
+              ]
+            }
+          },
+          "required": [
+            "direction",
+            "direct",
+            "ambient",
+            "provenance"
+          ],
+          "additionalProperties": false
+        },
+        "baselineFit": {
+          "type": "object",
+          "properties": {
+            "afterRMSE": {
+              "type": "number",
+              "minimum": 0
+            },
+            "normalization": {
+              "type": "number",
+              "minimum": 1e-06
+            },
+            "identifiable": {
+              "type": "boolean"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "directionGap": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "afterRMSE",
+            "normalization",
+            "identifiable",
+            "confidence",
+            "directionGap"
+          ],
+          "additionalProperties": false
+        },
+        "candidateFit": {
+          "type": "object",
+          "properties": {
+            "afterRMSE": {
+              "type": "number",
+              "minimum": 0
+            },
+            "normalization": {
+              "type": "number",
+              "minimum": 1e-06
+            },
+            "identifiable": {
+              "type": "boolean"
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "directionGap": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "afterRMSE",
+            "normalization",
+            "identifiable",
+            "confidence",
+            "directionGap"
+          ],
+          "additionalProperties": false
+        },
+        "calibrationScale": {
+          "type": "number",
+          "minimum": 1e-06
+        },
+        "colorGain": {
+          "const": [
+            1,
+            1,
+            1
+          ]
+        },
+        "regions": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pixels": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "baselineRMSE": {
+                "type": "number",
+                "minimum": 0
+              },
+              "assistedRMSE": {
+                "type": "number",
+                "minimum": 0
+              },
+              "classification": {
+                "enum": [
+                  "improved",
+                  "tie",
+                  "degraded",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "label",
+              "pixels",
+              "baselineRMSE",
+              "assistedRMSE",
+              "classification"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "version",
+        "selected",
+        "reason",
+        "intrinsicSha256",
+        "baselineSource",
+        "candidateSource",
+        "baselineFit",
+        "candidateFit",
+        "calibrationScale",
+        "colorGain",
+        "regions"
       ],
       "additionalProperties": false
     }

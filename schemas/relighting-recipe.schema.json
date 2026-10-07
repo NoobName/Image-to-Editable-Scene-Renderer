@@ -1,0 +1,372 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "rendererRevision",
+    "parameterContract",
+    "sourcePackage",
+    "identity",
+    "state",
+    "importedMask"
+  ],
+  "properties": {
+    "version": {
+      "enum": [1, 2]
+    },
+    "rendererRevision": {
+      "enum": ["image-relighting-29-v1", "image-relighting-33-v2"]
+    },
+    "parameterContract": {
+      "enum": ["bounded-response-v1", "bounded-response-fog-v2"]
+    },
+    "sourcePackage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "anchorSha256",
+        "manifests",
+        "analysisRevision",
+        "lightingRevision"
+      ],
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchorSha256": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifests": {
+          "type": "object"
+        },
+        "analysisRevision": {},
+        "lightingRevision": {}
+      }
+    },
+    "state": {
+      "$ref": "#/$defs/state"
+    },
+    "importedMask": {
+      "oneOf": [
+        {
+          "const": null
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {"properties": {"version": {"const": 1}, "rendererRevision": {"const": "image-relighting-29-v1"}, "parameterContract": {"const": "bounded-response-v1"},
+      "state": {"properties": {"imageFog": {"const": null}}}}},
+    {"properties": {"version": {"const": 2}, "rendererRevision": {"const": "image-relighting-33-v2"}, "parameterContract": {"const": "bounded-response-fog-v2"},
+      "state": {"required": ["imageFog"]}}}
+  ],
+  "$defs": {
+    "imageFog": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "sourceAdditionalDensity", "enabled", "density", "airlightLinear", "allowRelativeScale"],
+      "properties": {
+        "version": {"const": 1}, "sourceAdditionalDensity": {"const": 0}, "enabled": {"type": "boolean"},
+        "density": {"type": "number", "minimum": 0, "maximum": 1000}, "allowRelativeScale": {"type": "boolean"},
+        "airlightLinear": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number", "minimum": 0, "maximum": 1}}
+      }
+    },
+    "light": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction",
+        "directColor",
+        "ambientColor",
+        "directIntensity",
+        "ambientIntensity"
+      ],
+      "properties": {
+        "direction": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          }
+        },
+        "directColor": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "ambientColor": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "directIntensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "ambientIntensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 64
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceCalibration",
+        "target",
+        "targetGlobalGain",
+        "response",
+        "protectedRegions",
+        "displayExposure",
+        "confidenceOverlay",
+        "confidenceThreshold"
+      ],
+      "properties": {
+        "imageFog": {"$ref": "#/$defs/imageFog"},
+        "sourceCalibration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "light",
+            "revision",
+            "manual",
+            "fitCacheValid"
+          ],
+          "properties": {
+            "light": {
+              "$ref": "#/$defs/light"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "manual": {
+              "type": "boolean"
+            },
+            "fitCacheValid": {
+              "type": "boolean"
+            }
+          }
+        },
+        "target": {
+          "$ref": "#/$defs/light"
+        },
+        "targetGlobalGain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "response": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strength",
+            "specularStrength",
+            "shadowStrength",
+            "shadowConfidence",
+            "normalCosineEdge",
+            "epsilon",
+            "minRatio",
+            "maxRatio",
+            "shadowMaxDelta",
+            "shadowBias",
+            "shadowNormalBias",
+            "shadowPcfRadius",
+            "specularMaxDelta",
+            "specularRoughnessScale",
+            "chromaLimit",
+            "relativeDepthEdge",
+            "colorMode",
+            "stability",
+            "intrinsicProtection",
+            "specularEnabled",
+            "castShadows"
+          ],
+          "properties": {
+            "strength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "specularStrength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "shadowStrength": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "shadowConfidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "normalCosineEdge": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "epsilon": {
+              "type": "number",
+              "minimum": 0.000001,
+              "maximum": 1
+            },
+            "minRatio": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 1
+            },
+            "maxRatio": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "shadowMaxDelta": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "shadowBias": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.01
+            },
+            "shadowNormalBias": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.1
+            },
+            "shadowPcfRadius": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "specularMaxDelta": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.5
+            },
+            "specularRoughnessScale": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 2
+            },
+            "chromaLimit": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "relativeDepthEdge": {
+              "type": "number",
+              "minimum": 1e-9,
+              "maximum": 0.5
+            },
+            "colorMode": {
+              "enum": [
+                0,
+                1
+              ]
+            },
+            "stability": {
+              "type": "boolean"
+            },
+            "intrinsicProtection": {
+              "type": "boolean"
+            },
+            "specularEnabled": {
+              "type": "boolean"
+            },
+            "castShadows": {
+              "type": "boolean"
+            }
+          }
+        },
+        "protectedRegions": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "weight"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "displayExposure": {
+          "type": "number",
+          "minimum": -4,
+          "maximum": 4
+        },
+        "confidenceOverlay": {
+          "type": "boolean"
+        },
+        "confidenceThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

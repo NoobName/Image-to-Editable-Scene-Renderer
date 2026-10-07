@@ -1,0 +1,453 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceSha256": {
+      "type": "string",
+      "minLength": 64
+    },
+    "analysisSize": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2048
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "space": {
+      "const": "source-aligned-analysis-pixel-centers"
+    },
+    "units": {
+      "const": "unitless-support-not-ground-truth"
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 64
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 192
+        },
+        "biasRelative": {
+          "const": 0.01
+        },
+        "thicknessRelative": {
+          "const": 0.06
+        },
+        "maxDistanceScale": {
+          "const": 2
+        },
+        "shadingScale": {
+          "type": "number",
+          "minimum": 1e-06
+        }
+      },
+      "required": [
+        "steps",
+        "biasRelative",
+        "thicknessRelative",
+        "maxDistanceScale",
+        "shadingScale"
+      ],
+      "additionalProperties": false
+    },
+    "diagnostics": {
+      "type": "object",
+      "properties": {
+        "backend": {
+          "const": "depth-shell-support-v1"
+        },
+        "candidatePixels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknownPixels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lightConfidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "excludedNames": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "string"
+          }
+        },
+        "seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "backend",
+        "candidatePixels",
+        "unknownPixels",
+        "lightConfidence",
+        "excludedNames",
+        "seconds"
+      ],
+      "additionalProperties": false
+    },
+    "manual": {
+      "type": "object",
+      "properties": {
+        "confirm": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "size": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2048
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "mapping": {
+              "const": "normalized-source-nearest"
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "size",
+            "mapping"
+          ],
+          "additionalProperties": false
+        },
+        "protect": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "size": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2048
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "mapping": {
+              "const": "normalized-source-nearest"
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "size",
+            "mapping"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "maps": {
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "visibility": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "geometrySupport": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "confidence": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "unknown": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "manualConfirm": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "manualProtect": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        "effectiveCandidate": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64
+            },
+            "format": {
+              "enum": [
+                "R32_FLOAT",
+                "R32_UINT"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "sha256",
+            "format"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "candidate",
+        "visibility",
+        "geometrySupport",
+        "confidence",
+        "unknown",
+        "manualConfirm",
+        "manualProtect",
+        "effectiveCandidate"
+      ],
+      "additionalProperties": false
+    },
+    "regionInputs": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 64
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "sourceId",
+    "sourceSha256",
+    "analysisSize",
+    "space",
+    "units",
+    "inputs",
+    "parameters",
+    "diagnostics",
+    "manual",
+    "maps",
+    "regionInputs"
+  ],
+  "additionalProperties": false
+}

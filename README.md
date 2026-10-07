@@ -1,6 +1,36 @@
 # Image-to-Editable-Scene Renderer
 
-Windows / C++20 / DirectX 12 项目。已实现 Prompt 00–19：清屏、资源系统、相机与基础 Scene、glTF 2.0 导入、PBR、方向光阴影、HDR 环境 IBL、三栏 Look Development 工具、统一参数驱动的后处理管线、ScenePackage 磁盘交换格式，以及独立 Python Reconstruction Pipeline（MoGe-2 几何、逐像素 2.5D 网格、SAM 2 分割、Marigold intrinsic 材质估计、独立物体编辑与原尺寸 Appearance Anchor）。可从 File 菜单重建图像并自动加载结果，在 Viewport 选取物体、拖动太阳方向并实时编辑场景；可切换到独立二维原图、数值分析图和原始照明拟合诊断。
+Optional 33 已加入独立的额外图像雾：固定 source 距离、明确尺度、天空/无效区保护，默认关闭；Recipe v2 保存参数，仍可读取 v1。3D 与原图不变，不做去雾。[使用与契约](tools/ImageFog.md)。
+
+阶段32收尾：加入可复现的 Core Demo、独立新目录验收脚本和 CPU/GPU p50/p95 / 显存测量。图像处理与双模式架构不变；不依赖 Optional 33–35。[演示顺序、质量矩阵、离线命令和性能口径](tools/CoreDemo.md)；[模型 revision、照片来源与许可证边界](tools/ModelProvenance.md)。`Run-Smoke.ps1 -Profile` 输出原始时间样本；`-ImageSmoke profile-drag` 持续改变 target 灯，不能将 ImGui 平均 FPS 当作 GPU 耗时。
+
+最短离线工程演示（激活现有项目 Python 环境，输出目录必须是新的）：
+
+```powershell
+./tools/Build.ps1 -BuildDirectory generated/build-core
+./tools/Run-CoreDemo.ps1 -BuildDirectory generated/build-core -Python python -Output generated/my-core-demo
+./generated/build-core/Debug/ImageSceneRenderer.exe --recipe generated/my-core-demo/reference.json --work-mode image --ui
+```
+
+默认演示使用明确标注的解析/程序化数据，无模型下载。真实照片完整重跑使用 `profile_reconstruction.py --real`，命令和现有限制见上述交付文档。详细中文学习、Q&A、验证记录继续只保留在本地忽略的 `docs/`。
+
+阶段31加入有界 target lighting 优化：固定 source/geometry/albedo/Exposure，在可靠mask上搜索有限方向与RGB系数；不同内容仅匹配照明统计。后台可取消，参数/场景变更使旧结果失效；实际DX12候选数值复核通过后才允许Apply，并可保存Recipe。UI **Reference > Optimize current target**；[损失、边界、命令与验证](tools/LightingOptimization.md)。
+
+阶段30加入 Reference Lighting：同场景/不同内容参考经固定观察数据与已有照明估计器生成可检查的 target proposal；明确相机相对方向，保留 source、Exposure 和 Look。UI **Reference** 支持后台分析、残差、应用与恢复；已应用参数可保存为 Recipe。低可信/不可辨识结果明确不可应用；[接口、命令与边界](tools/ReferenceLighting.md)。
+
+阶段29增加独立 Relighting Recipe、严格身份与参数校验、后台重载事务，以及原尺寸 PNG/float DDS 导出。Inspector 的 **Recipe / Export** 支持另存、显式替换、打开与导出；CLI 用 `--recipe`、`--save-recipe`、`--export-image`。保持 source package 不变，区域保护与手动 source 基准可复现；[格式、边界和命令](tools/RelightingRecipe.md)。
+
+阶段28完善双模式图像编辑：左侧固定 Original / Reference 空状态，中央分组 Debug View 与 Fit/Pan/Zoom、并排/擦除对比，右侧区分 source 校准、target 全局强度与响应、显示 Exposure、低 confidence overlay 和稳定区域保护。保护只更新 relighting 权重，3D 编辑与 source observation 独立；[操作、资源边界和验证命令](tools/ImageWorkspace.md)。
+
+阶段27把固定 source 几何上的旧/新方向光阴影接入图像域：独立缓存 Shadow Map/Visibility，保守搬移有支持的直射漫反射遮挡变化；不对 ambient、非漫反射残差或整张原图乘阴影蒙版。Inspector 可关闭 **Paired cast shadows** 回退；`cast-old-map`、`cast-new-visibility`、`cast-change`、`cast-final`、`cast-baseline` 可对照。复用现有 mesh upload、ShadowPass、fence 退休；[范围、公式、命令与限制](tools/reconstruction/PairedCastShadow.md)。
+
+阶段26提供独立旧投影阴影支持分析：Inspector **Analyze old-shadow support** 或 `--estimate-shadows PACKAGE`，保存自动候选、可见率、几何支持、confidence/unknown 与人工确认/保护层。阶段26本身只进入诊断视图；阶段27开始消费可靠支持做有界变化。见[旧影接口与限制](tools/reconstruction/ShadowSupport.md)。
+
+阶段25增加固定source视角的保守方向光高光处理，复用GGX数学，从原RGB分离有界候选并施加成对差值。可在Image Inspector关闭以恢复diffuse-only结果，或使用`--no-specular`；[范围、公式与调试说明](tools/reconstruction/SpecularHandling.md)。
+
+阶段24增加可回退的 Intrinsic 辅助漫反射拟合。使用 `python tools/reconstruction/estimate_lighting.py INPUT_PACKAGE --output NEW_PACKAGE --lighting-backend intrinsic-assisted`，或 Inspector 的 **Fit intrinsic-assisted diffuse**。原图仍是唯一外观来源，支持区、非漫反射保护和新旧拟合证据可检查；详见[接口说明](tools/reconstruction/DiffuseRelighting.md)。
+
+Windows / C++20 / DirectX 12 项目。已实现 Prompt 00–29：清屏、资源系统、相机与基础 Scene、glTF 2.0 导入、PBR、方向光阴影、HDR 环境 IBL、三栏 Look Development 工具、统一参数驱动的后处理管线、ScenePackage 磁盘交换格式，以及独立 Python Reconstruction Pipeline（MoGe-2 几何、逐像素 2.5D 网格、SAM 2 分割、Marigold intrinsic 材质估计、独立物体编辑与原尺寸 Appearance Anchor）。可从 File 菜单重建图像并自动加载结果，在 Viewport 选取物体、拖动太阳方向并实时编辑场景；可切换到独立二维原图、数值分析图和原始照明拟合诊断。
 
 Renderer 与 AI Pipeline 解耦。C++ 不依赖 Python；Python 代码仅位于 `tools/reconstruction/`，通过 JSON 和磁盘文件交换数据。模型只在 Python Adapter 内运行，网格构建与离线重建不依赖 PyTorch。
 
@@ -41,7 +71,7 @@ Viewport 顶部 `Mode` 切换工作模式。`3D Scene` 保留原有编辑与 Fin
 
 旧 `--render-mode original` 仍是3D中的 **Original Image on Geometry**，RenderMode数值不变。没有已验证anchor的旧包继续显示3D；升级的legacy processed anchor可查看，但明确标为低分辨率。原图采用一次sRGB decode/encode，绕过默认ACES/Bloom/Look。背景加载成功时Scene与只读SourceObservation一起发布；失败或取消保留上一份文档，并沿用fence退休旧GPU资源。
 
-验证入口为 `tools/Validate-ImageMode.ps1` 和 `python tools/reconstruction/verify_image_mode.py`，使用阶段16 fixtures及修改前基线；详情、CLI与复现条件见 [ImageMode.md](tools/reconstruction/ImageMode.md)。本机实际19组窗口与像素验证通过；原尺寸1500×1000在Debug/Release/WARP下最大误差0 LSB（要求≤1），ImGui原尺寸512×341也为0。当前只支持Auto Fit、单mip线性过滤，无pan/zoom、新照明或HDR10输出。
+验证入口为 `tools/Validate-ImageMode.ps1` 和 `python tools/reconstruction/verify_image_mode.py`，使用阶段16 fixtures及修改前基线；详情、CLI与复现条件见 [ImageMode.md](tools/reconstruction/ImageMode.md)。本机实际19组窗口与像素验证通过；原尺寸1500×1000在Debug/Release/WARP下最大误差0 LSB（要求≤1），ImGui原尺寸512×341也为0。阶段17当时只支持Auto Fit、单mip线性过滤；阶段28增加独立pan/zoom与对比工具，现有图像照明能力见各后续章节，仍不输出HDR10。
 
 ## 阶段 16：保留原尺寸 Appearance Anchor
 
@@ -472,3 +502,32 @@ Validate-Lighting 在关闭天空和直接光时分别比较金属球、漫反�
 `src/Assets/` 只负责 CPU 解析；`src/Scene/` 保存可编辑数据；`src/Renderer/` 管理 DX12 资源和 Pass；`src/UI/` 的 LookDevelopmentUI 管理后端，Layout / SceneHierarchy / InspectorPanels / EnvironmentPanel 管理各面板，ViewportInput 管理输入归属。GpuScene 复用主 Pass 与 Shadow Pass 的网格/材质；EnvironmentManager 管理 HDR 选择与缓存，EnvironmentBaker 执行 GPU 卷积。Shader 按功能拆分，ColorManagement.hlsli 供 ToneMap 和 GPU 数值测试共用。
 
 `docs/` 内有各阶段中文入门教程、面试 Q&A、排错与实测记录。**整个 `/docs/` 已被 `.gitignore` 排除，不上传 GitHub。** `build/`、`generated/` 也被忽略。当前尚未实现隐藏几何补全、编辑保存、RPC、网络服务或参数优化。
+
+## 阶段 20：独立图像域成对明暗
+
+Image Mode now offers Calculated Old/New Shading, their absolute difference, signed normal/light dot and validity. The independent `ImageRelightingRenderer` uses the same relative Lambert + colored ambient evaluator for source and target. Target edits update only New; Source remains the default unchanged image and 3D Final keeps its existing pipeline. No shading ratio or relit RGB is produced at this stage.
+
+Run `./build/Debug/ImageSceneRenderer.exe --package generated/scene19-final --work-mode image --image-view calculated-new` for an existing stage19 package. Contract, scale, GPU ownership and validation commands: [ImageShading.md](tools/reconstruction/ImageShading.md).
+
+## 阶段 21：以原图为来源的实时相对照明
+
+Image Mode 默认 Relighted：在线性 RGB 中用原图乘对称 shading ratio，提供 strength、亮度保色/受限彩色响应和 Reset target to source。原尺寸合成，invalid 区域回原图；不套用 3D Look/ACES，不移动旧阴影或复杂反射。入口与数值/显存/计时合同见 [ImageRatio.md](tools/reconstruction/ImageRatio.md)。使用 --work-mode image --image-view relighted，旧 original 与 3D --render-mode 继续有效。
+
+## 阶段 22：置信来源、边界与稳定性
+
+Image Mode 默认开启独立启发式权重、受限 log ratio 与深度/法线/区域约束采样。提供 Conservative preset、各权重/有效变化可视化，以及 `--protection-mask path.png` 导入小型灰度保护蒙版（白色保留原图）。没有新增模型、阴影移除或高光移动。公式、来源语义、资源预算与验证命令见 [RelightingStability.md](tools/reconstruction/RelightingStability.md)。
+
+## 阶段 23：独立 Intrinsic 分析
+
+`Estimate saved image intrinsics` 离线复用当前包，输出新的包及可选 Intrinsic sidecar，提供独立 albedo / diffuse shading / non-diffuse residual / uncertainty / recomposition error 视图。使用固定官方 Marigold Lighting Adapter，也可选 Proxy/Saved；真实模型已在本机执行。原有材质和默认 relighting 公式保持不变。命令、模型 revision/hash、线性输出与许可见 [Intrinsic.md](tools/reconstruction/Intrinsic.md)。
+## Optional 33: additional image atmosphere
+
+Image Relighting now has a separate **Additional image atmosphere** panel: bounded depth-guided haze using fixed source-camera ray distance, explicit linear airlight and geometry/region protection. Default OFF; source additional fog stays zero, no dehazing or 3D fog is implied. New Recipe v2 persists the effect; v1 remains readable with fog disabled. Native anchor and ScenePackage v1 remain unchanged.
+
+```powershell
+./tools/Build.ps1 -BuildDirectory generated/build-fog
+python tools/reconstruction/fog_examples.py generated/fog-inputs
+./generated/build-fog/Debug/ImageSceneRenderer.exe --package generated/fog-inputs/edge --work-mode image --image-fog-density 0.3 --ui
+```
+
+[Contract, limits, debug views and verification commands](tools/ImageFog.md). The optional pass retains the [Core Demo](tools/CoreDemo.md) regression requirements. Local detailed teaching/validation remains ignored under `docs/`.

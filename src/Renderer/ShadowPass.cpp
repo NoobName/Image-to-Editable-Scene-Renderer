@@ -26,9 +26,10 @@ ShadowPass::ShadowPass(ID3D12Device* device,DescriptorAllocator& dsv,D3D12_CPU_D
     desc.DepthStencilState.DepthEnable=TRUE;desc.DepthStencilState.DepthWriteMask=D3D12_DEPTH_WRITE_MASK_ALL;desc.DepthStencilState.DepthFunc=D3D12_COMPARISON_FUNC_LESS;
     for(unsigned i=0;i<4;++i){desc.RasterizerState.FrontCounterClockwise=(i&1)!=0;desc.RasterizerState.CullMode=(i&2)?D3D12_CULL_MODE_NONE:D3D12_CULL_MODE_BACK;pipelines_[i]=std::make_unique<PipelineState>(device,desc);}
 }
-ShadowFrame ShadowPass::Draw(ID3D12GraphicsCommandList* list,FrameContext& frame,const Scene& scene,const GpuScene& gpu,const RenderSettings& settings){
+ShadowFrame ShadowPass::Draw(ID3D12GraphicsCommandList* list,FrameContext& frame,const Scene& scene,const GpuScene& gpu,const RenderSettings& settings,const XMFLOAT3* fixedDirection){
     ShadowFrame result;XMStoreFloat4x4(&result.viewProjection,XMMatrixIdentity());
-    if(settings.shadows)for(size_t i=0;i<scene.lights.size();++i){const auto& light=scene.lights[i];
+    if(fixedDirection){result.lightIndex=0;XMStoreFloat4x4(&result.viewProjection,FitDirectionalShadow(WorldBounds(scene,meshBounds_),*fixedDirection,Resolution));}
+    else if(settings.shadows)for(size_t i=0;i<scene.lights.size();++i){const auto& light=scene.lights[i];
         if(light.type==LightType::Directional&&light.intensity>0&&XMVectorGetX(XMVector3LengthSq(XMLoadFloat3(&light.direction)))>1e-10f){
             result.lightIndex=static_cast<int>(i);XMStoreFloat4x4(&result.viewProjection,FitDirectionalShadow(WorldBounds(scene,meshBounds_),light.direction,Resolution));break;}}
     depth_->Transition(list,D3D12_RESOURCE_STATE_DEPTH_WRITE);list->ClearDepthStencilView(dsv_.cpu,D3D12_CLEAR_FLAG_DEPTH,1,0,0,nullptr);

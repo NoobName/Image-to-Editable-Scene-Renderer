@@ -1,0 +1,23 @@
+# Bounded target optimization (stage 31)
+
+Stage31 refines a target proposal from stage30. Source RGB, geometry, normal, albedo, source lighting, exposure and Look are fixed. The eight stored coordinates are travel yaw/pitch and nonnegative direct/ambient RGB coefficients; `Y(D+B)` is fixed to the source baseline, so the effective parameter count is seven. Relative exposure has the explicit fixed bound `[0,0]`. No inverse geometry/material/pixel editing and no differentiable DX12 renderer are introduced.
+
+```powershell
+./build/Debug/ImageSceneRenderer.exe --package generated/reference-examples/source --optimize-reference generated/reference-examples/reference-proposal --optimization-registered --apply-reference --work-mode image --frames 120 --save-recipe generated/optimized.json --export-image generated/optimized-export
+```
+
+Create fresh example proposals with `reference_examples.py`; stage31 adds saved linear `debug/albedo.dds` for registered checks. Old stage30 proposals remain readable, but same-scene optimization needs these fixed albedo observations: regenerate analysis to a new directory. Different-content optimization does not require pixel alignment or this albedo map.
+
+UI **Reference > Optimize current target** operates on the currently inspected proposal. Confirm **Registered pixel alignment confirmed** only for same-scene registered observations; different-content uses direction, coefficient and response-distribution targets, never reference RGB per-pixel MSE. **Iteration limit** is 1..200. **Cancel reference analysis** stops the offline process. Inspect the fixed loss curve, status, DX12 verification and `debug/optimization.png`; **Apply target proposal** is explicit unless CLI `--apply-reference` is supplied. **Restore target before reference** uses the saved pre-apply target. To retry, reopen the original reference analysis; optimization results are not recursively treated as new constraints.
+
+`--optimization-iterations N` sets the limit; `--optimization-edit-frame N` is a test-only concurrent target edit. Existing reference cancellation, recipe reload, image mode and smoke flags remain compatible. Standalone `optimize_lighting.py` requires a request JSON snapshot produced by the C++ workflow, `--source-package`, `--reference-analysis`, `--output`; `--registered`, `--iterations` and `--cancel-file` are optional. No model is loaded by optimization.
+
+The deterministic bounded pattern search uses seed31 and at most4096 fixed samples. Same-scene loss is masked Huber diffuse shading loss; it checks normal/albedo agreement, dimensions and camera metadata. Excluded, low-material-confidence and protected pixels do not improve the objective. Direction change is limited to90° from the captured initial target; RGB is nonnegative/bounded and energy-normalized. Insufficient support, normal rank deficiency, unsupported reference, wrong alignment, large unexplained residual, no significant improvement or cancellation retain the initial target.
+
+`optimization.json` version1 uses `schemas/lighting-optimization.schema.json`, alongside a new reference.json. It stores the initial Recipe state/effective target, parameterization, bounds, seed/sample hash, loss/parameter/step history and hashed candidate DDS. Publication is atomic to a new directory. C++ rechecks source calibration, scene revision and current Recipe state; target/protection/display edits invalidate pending results. Source calibration is never part of the target optimizer.
+
+Before an improved candidate can be applied, DX12 renders its actual unit diffuse New Shading, reads the tracked texture using PS_RESOURCE→COPY_SOURCE→PS_RESOURCE, restores the live target shading in the same ordered command list, then waits for the fence. CPU/GPU maximum absolute error must be≤5e-5, finite and same shape. `gpu-verification.json` and `debug/gpu-candidate.dds` record the check. Persisted success claims are never trusted: reopening a proposal repeats verification. This occurs only on candidate publication, not every frame.
+
+CPU evaluation approximates diffuse unit response only. It does not optimize or emulate high-frequency ratio protection, paired specular/cast shadows or full-resolution display. Native exports validate the final DX12 path separately. Real ambiguous references can be rejected even when an unconstrained fit reduces residual; no-op identity is not used as proof of recovered illumination.
+
+Validation tools: `Validate-Optimization.ps1`, `verify_optimization.py`, `validate_optimization_contract.py`, `tests/test_optimization.py`, C++ `ReferenceTests`. All recipe exports remain display-referred, not recovered HDR radiance.

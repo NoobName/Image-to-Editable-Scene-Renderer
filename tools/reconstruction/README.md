@@ -1,5 +1,11 @@
 # Reconstruction Pipeline
 
+Stage25 adds conservative directional GGX handling in the renderer using saved observations, without new inference. See [SpecularHandling.md](SpecularHandling.md); residuals are not automatically classified as specular.
+
+Stage24 uses independent intrinsic diffuse observations with the existing robust solver, fixed global gauge and explicit baseline fallback. It preserves Original RGB and paired evaluation. See [DiffuseRelighting.md](DiffuseRelighting.md).
+
+Stage 23 adds an independent [IntrinsicBackend and offline workflow](Intrinsic.md): pinned Marigold Lighting, Saved/Proxy alternatives, linear A/S/R contracts, uncertainty/recomposition evidence and GPU Debug Views. It preserves existing materials and the stage22 default Original×ratio formula. Stages20–22 provide [paired shading](ImageShading.md), [Original ratio](ImageRatio.md) and [stability controls](RelightingStability.md); earlier stage descriptions below remain historical.
+
 Stage 19 adds model-independent original-lighting fitting, a strict optional lighting sidecar, source/target calibration state and four independent GPU evidence views. Use `estimate_lighting.py` for saved-package reuse or `reconstruct.py --lighting-backend robust-directional-ambient`; no new model is installed. See [LightingBaseline.md](LightingBaseline.md). Neutral/degenerate inputs are explicitly low-confidence; target parameters do not yet produce relighted RGB.
 
 Stage 18 exports numeric AnalysisMaps through a strict optional sidecar and bounded float32/uint32 DX10 DDS. The renderer's independent Image View can inspect geometry, validity, labels, material estimates and provenance confidence; PBR slots and source pixels are unchanged. See [AnalysisMaps.md](AnalysisMaps.md) for conventions, saved-package upgrade, missing-data behavior and readback verification. This does not perform relighting or additional model inference.
@@ -135,3 +141,7 @@ Create an asymmetric test JPEG if you have no input handy:
 .\tools\reconstruction\.venv\Scripts\python.exe tools/reconstruction/test_reconstruction.py --make-input "generated/reconstruction-input.jpg"
 .\tools\reconstruction\.venv\Scripts\python.exe tools/reconstruction/reconstruct.py "generated/reconstruction-input.jpg" --output "generated/my-dummy-scene"
 ```
+
+阶段26：`estimate_shadows.py PACKAGE --output NEW_PACKAGE` 离线分析固定源观测，默认使用accepted intrinsic-assisted尺度，否则须显式`--shading-scale`。支持`--confirm-mask`/`--protect-mask`分层PNG；分析脚本仅生成诊断，不输出最终RGB。见[ShadowSupport](ShadowSupport.md)。
+
+阶段27：C++消费已有点图与旧影支持，独立缓存旧/新Shadow Map及Visibility，做有界的直射漫反射阴影变化。不添加模型/sidecar版本，不改变Python导出的原图。`cast_shadow_examples.py`生成解析夹具，`verify_cast_shadow.py`核对GPU数值与回退。见[PairedCastShadow](PairedCastShadow.md)。

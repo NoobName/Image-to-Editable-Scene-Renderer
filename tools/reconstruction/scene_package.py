@@ -158,6 +158,18 @@ def validate_files(root, data):
         except ImportError:
             from lighting_contract import load_lighting
         load_lighting(root, appearance)
+    if (root / "intrinsic/intrinsic.json").exists():
+        try:
+            from .intrinsic_contract import load_intrinsic
+        except ImportError:
+            from intrinsic_contract import load_intrinsic
+        load_intrinsic(root, appearance)
+    if (root / 'shadow/shadow.json').exists():
+        try:
+            from .shadow_contract import load_shadow
+        except ImportError:
+            from shadow_contract import load_shadow
+        load_shadow(root, appearance)
 
 
 def load_package(package):

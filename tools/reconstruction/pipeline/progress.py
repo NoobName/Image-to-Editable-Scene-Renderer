@@ -7,11 +7,13 @@ from pathlib import Path
 LEGACY_STAGES = ("geometry", "segmentation", "materials", "export")
 STAGES = ("geometry", "segmentation", "materials", "lighting", "export")
 OFFLINE_STAGES = ("lighting", "export")
+INTRINSIC_STAGES = ("intrinsic", "export")
+SHADOW_STAGES = ("shadow", "export")
 
 
 class ProgressReporter:
     def __init__(self, path=None, job_id="", stages=STAGES, version=2):
-        if version not in (1, 2) or tuple(stages) not in (STAGES, OFFLINE_STAGES, LEGACY_STAGES):
+        if version not in (1, 2) or tuple(stages) not in (STAGES, OFFLINE_STAGES, LEGACY_STAGES, INTRINSIC_STAGES, SHADOW_STAGES):
             raise ValueError("Unsupported progress stage table")
         self.stages = LEGACY_STAGES if version == 1 else tuple(stages)
         self.path = Path(path) if path else None

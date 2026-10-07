@@ -69,8 +69,12 @@ class RobustDirectionalAmbientBackend(LightingEstimationBackend):
     name = "robust-directional-ambient"
 
     def predict(self, observation):
+        return self.fit_prepared(observation, prepare_proxy(observation))
+
+    def fit_prepared(self, observation, prepared):
+        """The same bounded solver accepts either I/A or an independently observed diffuse response."""
         o = observation
-        proxy, weight, flags, normalization, exclusions = prepare_proxy(o)
+        proxy, weight, flags, normalization, exclusions = prepared
         indices = np.flatnonzero(weight)
         # Bounded deterministic spatial subsampling makes offline fitting independent of BLAS threading.
         indices = indices[np.linspace(0, len(indices)-1, min(len(indices), 4096), dtype=int)] if len(indices) else indices

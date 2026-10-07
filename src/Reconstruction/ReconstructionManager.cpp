@@ -54,13 +54,14 @@ ReconstructionManager::ReconstructionManager(std::filesystem::path root) {
 }
 ReconstructionManager::~ReconstructionManager(){Cancel();if(worker_.joinable())worker_.join();}
 ReconstructionStatus ReconstructionManager::Status()const{std::lock_guard lock(mutex_);return status_;}
-bool ReconstructionManager::Start(const std::filesystem::path& input,bool lightingOnly){
+bool ReconstructionManager::Start(const std::filesystem::path& input,bool lightingOnly,bool intrinsicOnly,bool shadowOnly){
+    if(int(lightingOnly)+int(intrinsicOnly)+int(shadowOnly)>1)throw std::invalid_argument("Choose one offline analysis stage");
     if(Status().Busy())return false;
     if(worker_.joinable())worker_.join(); // Terminal status is published at the end of worker execution.
     {std::lock_guard lock(mutex_);status_={};status_.state=ReconstructionState::Processing;status_.input=input;
         status_.message="Starting Python pipeline";sequence_=0;package_.reset();}
-    auto config=options;config.lightingOnly=lightingOnly;lastOptions_=config;
-    {std::lock_guard lock(mutex_);status_.lightingOnly=lightingOnly;if(lightingOnly){status_.stageNames={"lighting","export"};status_.stages={"pending","pending"};}}
+    auto config=options;config.lightingOnly=lightingOnly;config.intrinsicOnly=intrinsicOnly;config.shadowOnly=shadowOnly;lastOptions_=config;
+    {std::lock_guard lock(mutex_);status_.lightingOnly=lightingOnly;status_.intrinsicOnly=intrinsicOnly;status_.shadowOnly=shadowOnly;if(lightingOnly||intrinsicOnly||shadowOnly){status_.stageNames={shadowOnly?"shadow":intrinsicOnly?"intrinsic":"lighting","export"};status_.stages={"pending","pending"};}}
     try{worker_=std::jthread([this,config,input](std::stop_token stop){Run(stop,config,input);});}
     catch(const std::exception& e){Fail(e.what());return false;}
     return true;
@@ -72,7 +73,8 @@ void ReconstructionManager::Cancel(){
 bool ReconstructionManager::Retry(){
     const auto status=Status();const auto previous=options;
     if(status.lightingOnly){options.lighting=lastOptions_.lighting;options.calibration=lastOptions_.calibration;}
-    const auto started=Start(status.input,status.lightingOnly);options=previous;return started;
+    if(status.intrinsicOnly){options.intrinsic=lastOptions_.intrinsic;options.maxSize=lastOptions_.maxSize;options.offline=lastOptions_.offline;}
+    const auto started=Start(status.input,status.lightingOnly,status.intrinsicOnly,status.shadowOnly);options=previous;return started;
 }
 void ReconstructionManager::Fail(std::string message){
     std::lock_guard lock(mutex_);status_.state=ReconstructionState::Error;status_.message=std::move(message);package_.reset();
@@ -111,7 +113,7 @@ void ReconstructionManager::Run(std::stop_token stop,ReconstructionOptions confi
         if(config.python.empty()||!std::filesystem::is_regular_file(config.python))throw std::runtime_error("Select an existing project python.exe in File > Reconstruction settings.");
         const auto python=std::filesystem::canonical(config.python);input=std::filesystem::canonical(input);
         if(!std::filesystem::is_regular_file(python)||python.extension()!=L".exe")throw std::runtime_error("Select the project environment's python.exe in Reconstruction settings.");
-        const auto script=root/"tools/reconstruction"/(config.lightingOnly?"estimate_lighting.py":"reconstruct.py");
+        const auto script=root/"tools/reconstruction"/(config.shadowOnly?"estimate_shadows.py":config.intrinsicOnly?"estimate_intrinsic.py":config.lightingOnly?"estimate_lighting.py":"reconstruct.py");
         if(!std::filesystem::is_regular_file(script))throw std::runtime_error("Project tools/reconstruction/reconstruct.py was not found.");
         if(config.maxSize<16||config.maxSize>2048)throw std::runtime_error("Image size must be 16..2048");
         if((config.geometry!="moge"&&config.geometry!="dummy")||(config.segmentation!="sam2"&&config.segmentation!="dummy")||
@@ -129,10 +131,14 @@ void ReconstructionManager::Run(std::stop_token stop,ReconstructionOptions confi
             L"--progress-file",progress.wstring(),L"--job-id",wide(id),L"--geometry-backend",wide(config.geometry),
             L"--segmentation-backend",wide(config.segmentation),L"--material-backend",wide(config.materials),
             L"--device",L"auto",L"--max-size",std::to_wstring(config.maxSize)};
-        if(config.lightingOnly)arguments={L"-u",script.wstring(),input.wstring(),L"--output",output.wstring(),L"--progress-file",progress.wstring(),L"--job-id",wide(id)};
+        if(config.lightingOnly||config.intrinsicOnly||config.shadowOnly)arguments={L"-u",script.wstring(),input.wstring(),L"--output",output.wstring(),L"--progress-file",progress.wstring(),L"--job-id",wide(id)};
         else if(config.offline)arguments.push_back(L"--offline");
-        arguments.insert(arguments.end(),{L"--lighting-backend",wide(config.lighting)});
-        if(config.lighting=="manual-test"){
+        if(config.intrinsicOnly){
+            if(config.intrinsic!="marigold-lighting"&&config.intrinsic!="proxy"&&config.intrinsic!="saved")throw std::runtime_error("Unknown intrinsic backend");
+            arguments.insert(arguments.end(),{L"--backend",wide(config.intrinsic),L"--resolution",std::to_wstring(config.maxSize)});
+            if(config.offline)arguments.push_back(L"--offline");
+        }else if(!config.shadowOnly)arguments.insert(arguments.end(),{L"--lighting-backend",wide(config.lighting)});
+        if(!config.shadowOnly&&!config.intrinsicOnly&&config.lighting=="manual-test"){
             auto values=[&](const wchar_t* key,const std::array<float,3>& rgb,float gain){arguments.emplace_back(key);for(float v:rgb)arguments.push_back(std::to_wstring(v*gain));};
             values(L"--light-direction",config.calibration.direction,1);values(L"--direct-rgb",config.calibration.directColor,config.calibration.directIntensity);
             values(L"--ambient-rgb",config.calibration.ambientColor,config.calibration.ambientIntensity);

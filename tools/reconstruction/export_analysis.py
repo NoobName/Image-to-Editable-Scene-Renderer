@@ -17,6 +17,8 @@ from scene_package import load_package
 def export_saved(package, output, lighting_backend=None, stage_event=None):
     package = Path(package).resolve(strict=True)
     output = check_destination(Path(output))
+    if output.resolve().is_relative_to(package):
+        raise ValueError('New analysis package must be outside the input package')
     image, geometry, report = load_saved_geometry(package)
     segmentation = load_saved_segmentation(package, image, geometry)
     labels = segmentation.labels if segmentation is not None else np.ones_like(geometry.depth, dtype=np.uint32)
@@ -28,6 +30,9 @@ def export_saved(package, output, lighting_backend=None, stage_event=None):
         if not isinstance(analysis.material, MaterialEstimate):
             raise ValueError('Lighting unavailable: saved package has no estimated albedo; estimate materials first')
         from pipeline.lighting_backend import make_lighting_input
+        if hasattr(lighting_backend, 'bind_package'):
+            from appearance_contract import load_extension
+            lighting_backend.bind_package(package, load_extension(package))
         event('lighting', 'running', lighting_backend.name)
         estimate = lighting_backend.predict(make_lighting_input(image, analysis))
         event('lighting', 'complete', estimate.fit['status'])
@@ -41,6 +46,8 @@ def export_saved(package, output, lighting_backend=None, stage_event=None):
         shutil.copytree(package, target)
         appearance = write_appearance(target, image, geometry)
         write_analysis_maps(target, image, analysis, appearance)
+        from pipeline.shadow_assets import invalidate_shadow
+        invalidate_shadow(target)  # Geometry/light versions changed in this private output snapshot.
         if estimate is not None:
             from pipeline.lighting_assets import write_lighting_assets
             write_lighting_assets(target, image, appearance, estimate)
